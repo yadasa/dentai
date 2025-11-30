@@ -1,0 +1,372 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Voice Agent Desktop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <div class="app-title">Voice Agent Desktop</div>
+        <div class="app-subtitle">ElevenLabs + Twilio Control Panel</div>
+      </header>
+
+      <div class="app-body">
+        <nav class="sidebar">
+          <div class="sidebar-top">
+            <button class="nav-btn active" data-view="agent-settings">Agent Settings</button>
+            <button class="nav-btn" data-view="dialer">Phone Settings</button>
+            <button class="nav-btn" data-view="history">Call History</button>
+            <button class="nav-btn" data-view="billing">Billing &amp; Payment</button>
+            <button class="nav-btn" data-view="knowledge">Knowledge Base</button>
+          </div>
+
+          <!-- PINNED SAVE BUTTON -->
+          <div class="sidebar-bottom">
+            <button id="btn-save-agent" class="primary-btn sidebar-save-btn">
+              Save Agent
+            </button>
+            <div id="agent-save-status" class="save-status"></div>
+          </div>
+        </nav>
+
+
+        <main class="main-panel">
+          <!-- Agent Settings View -->
+          <section id="view-agent-settings" class="view active-view">
+            <h2>ElevenLabs Agent Settings</h2>
+            <div class="card">
+              <h3>ElevenLabs API</h3>
+              <label>
+                API Key
+                <input
+                  type="password"
+                  id="eleven-api-key"
+                  placeholder="Enter ElevenLabs API key"
+                />
+              </label>
+            </div>
+
+            <div class="card">
+              <h3>Voice & Language</h3>
+              <div class="grid-2">
+                <label>
+                  Voice
+                  <select id="eleven-voice">
+                    <!-- You can populate this via API later -->
+                    <option value="">Select voice</option>
+                    <option value="adam">Adam (English)</option>
+                    <option value="bella">Bella (English)</option>
+                    <option value="antonio">Antonio (Spanish)</option>
+                  </select>
+                </label>
+
+                <label>
+                  Language
+                  <select id="eleven-language">
+                    <option value="">Auto / default</option>
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Agent Behavior</h3>
+              <label>
+                System Prompt
+                <textarea
+                  id="eleven-system-prompt"
+                  rows="4"
+                  placeholder="Describe the agent's personality, role, and behavior..."
+                ></textarea>
+              </label>
+
+              <label>
+                Greeting (First Message)
+                <textarea
+                  id="eleven-greeting"
+                  rows="2"
+                  placeholder="What should the agent say when the call connects?"
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="card">
+              <h3>Voice Fine-Tuning</h3>
+              <div class="slider-row">
+                <label>
+                  Talking Speed
+                  <input
+                    type="range"
+                    id="eleven-speed"
+                    min="0.6"
+                    max="1.4"
+                    step="0.05"
+                    value="1.0"
+                  />
+                </label>
+                <span id="eleven-speed-value">1.0x</span>
+              </div>
+
+              <div class="slider-row">
+                <label>
+                  Stability
+                  <input
+                    type="range"
+                    id="eleven-stability"
+                    min="0.0"
+                    max="1.0"
+                    step="0.05"
+                    value="0.5"
+                  />
+                </label>
+                <span id="eleven-stability-value">0.50</span>
+              </div>
+
+              <div class="slider-row">
+                <label>
+                  Similarity Boost
+                  <input
+                    type="range"
+                    id="eleven-similarity"
+                    min="0.0"
+                    max="1.0"
+                    step="0.05"
+                    value="0.75"
+                  />
+                </label>
+                <span id="eleven-similarity-value">0.75</span>
+              </div>
+            </div>
+
+            
+          </section>
+
+          <!-- Dialer View -->
+          <section id="view-dialer" class="view">
+            <h2>Dialer (Twilio)</h2>
+
+            <div class="card">
+              <h3>Twilio Credentials</h3>
+              <div class="grid-3">
+                <label>
+                  Account SID
+                  <input
+                    type="text"
+                    id="twilio-account-sid"
+                    placeholder="ACxxxxxxxx"
+                  />
+                </label>
+                <label>
+                  Auth Token
+                  <input
+                    type="password"
+                    id="twilio-auth-token"
+                    placeholder="Your auth token"
+                  />
+                </label>
+                <label>
+                  From Number
+                  <input
+                    type="text"
+                    id="twilio-from-number"
+                    placeholder="+1XXXXXXXXXX"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Place a Call</h3>
+              <div class="grid-2">
+                <label>
+                  To Number
+                  <input
+                    type="text"
+                    id="dialer-to-number"
+                    placeholder="+1XXXXXXXXXX"
+                  />
+                </label>
+                <div class="dialer-controls">
+                  <button id="btn-start-call" class="primary-btn">
+                    Call
+                  </button>
+                  <span id="dialer-status" class="status-text"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Call Log (Session)</h3>
+              <pre id="dialer-log" class="log-box"></pre>
+            </div>
+          </section>
+
+          <!-- Call History View -->
+          <section id="view-history" class="view">
+            <h2>Call History</h2>
+
+            <div class="card history-header">
+              <button id="btn-refresh-history" class="ghost-btn">
+                Refresh
+              </button>
+              <button id="btn-clear-history" class="danger-btn">
+                Clear History
+              </button>
+              <span id="history-status" class="status-text"></span>
+            </div>
+
+            <div class="card">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>To</th>
+                    <th>From</th>
+                    <th>Status</th>
+                    <th>Duration (s)</th>
+                    <th>Summary</th>
+                  </tr>
+                </thead>
+                <tbody id="history-table-body"></tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <h3>Transcript</h3>
+              <div id="history-transcript" class="transcript-box">
+                Select a call to view its transcript.
+              </div>
+            </div>
+          </section>
+
+          <!-- Billing & Payment View -->
+          <section id="view-billing" class="view">
+            <h2>Billing &amp; Payment</h2>
+
+            <div class="card">
+              <h3>Card Information</h3>
+              <div class="grid-2">
+                <label>
+                  Card Number
+                  <input
+                    type="text"
+                    id="billing-card-number"
+                    placeholder="4242 4242 4242 4242"
+                  />
+                </label>
+                <label>
+                  CVV
+                  <input
+                    type="password"
+                    id="billing-cvv"
+                    placeholder="123"
+                  />
+                </label>
+              </div>
+              <div class="grid-2">
+                <label>
+                  Expiry (MM/YY)
+                  <input
+                    type="text"
+                    id="billing-expiry"
+                    placeholder="08/27"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Billing Address</h3>
+              <label>
+                Name on Card
+                <input
+                  type="text"
+                  id="billing-name"
+                  placeholder="Full name"
+                />
+              </label>
+              <label>
+                Address
+                <input
+                  type="text"
+                  id="billing-address"
+                  placeholder="Street address"
+                />
+              </label>
+              <div class="grid-3">
+                <label>
+                  City
+                  <input type="text" id="billing-city" />
+                </label>
+                <label>
+                  State / Province
+                  <input type="text" id="billing-state" />
+                </label>
+                <label>
+                  Postal Code
+                  <input type="text" id="billing-postal" />
+                </label>
+              </div>
+              <label>
+                Country
+                <input type="text" id="billing-country" placeholder="US" />
+              </label>
+            </div>
+
+            <div class="card">
+              <p class="status-text">
+                Payment details are stored <strong>locally</strong> only and
+                encrypted.
+              </p>
+              <p class="status-text">
+                This card will be charged a single monthly transaction for access to the multiple API's that this AI runs on.
+              </p>
+            </div>
+          </section>
+
+          <!-- Knowledge Base View -->
+          <section id="view-knowledge" class="view">
+            <h2>Knowledge Base</h2>
+
+            <div class="card">
+              <div class="kb-header-row">
+                <h3>Links the Agent Should Consider</h3>
+                <div class="kb-controls">
+                  <input
+                    type="text"
+                    id="kb-new-link"
+                    class="hidden"
+                    placeholder="https://your-doc-or-site.com"
+                  />
+                  <button id="kb-save-link" class="primary-btn hidden">
+                    Save Link
+                  </button>
+                  <button id="kb-add-btn" class="ghost-btn">
+                    + Add Link
+                  </button>
+                </div>
+              </div>
+
+              <div id="kb-list"></div>
+
+              <div id="kb-save-status" class="save-status"></div>
+              <div style="margin-top:8px;font-size:11px;color:#9b9bb5;">
+                These URLs will be stored locally and can be used to feed extra
+                context into your ElevenLabs / Twilio agent logic.
+              </div>
+            </div>
+          </section>
+
+        </main>
+      </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

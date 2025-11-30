@@ -1,0 +1,28 @@
+﻿{
+  "name": "voice-agent-desktop",
+  "version": "1.0.0",
+  "description": "Desktop UI wrapper for ElevenLabs + Twilio",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.yourcompany.voiceagent",
+    "productName": "Voice Agent Desktop",
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "author": "You",
+  "license": "MIT",
+  "dependencies": {
+    "electron-store": "^8.2.0",
+    "twilio": "^5.2.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
