@@ -6,20 +6,44 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <!-- UPDATE OVERLAY -->
+    <div id="update-overlay" class="update-overlay">
+      <div class="update-overlay-box">
+        <div class="update-spinner"></div>
+        <div id="update-overlay-text" class="update-text">
+          Checking for updates…
+        </div>
+      </div>
+    </div>
+
     <div id="app">
       <header class="app-header">
-        <div class="app-title">Voice Agent Desktop</div>
-        <div class="app-subtitle">ElevenLabs + Twilio Control Panel</div>
+        <div class="app-title">SmartVoiceX</div>
+        <div class="app-subtitle">Admin Control Panel</div>
       </header>
 
       <div class="app-body">
+        <!-- SIDEBAR -->
         <nav class="sidebar">
           <div class="sidebar-top">
-            <button class="nav-btn active" data-view="agent-settings">Agent Settings</button>
-            <button class="nav-btn" data-view="dialer">Phone Settings</button>
-            <button class="nav-btn" data-view="history">Call History</button>
-            <button class="nav-btn" data-view="billing">Billing &amp; Payment</button>
-            <button class="nav-btn" data-view="knowledge">Knowledge Base</button>
+            <button class="nav-btn active" data-view="agent-settings">
+              Agent Settings
+            </button>
+            <button class="nav-btn" data-view="dialer">
+              Phone Settings
+            </button>
+            <button class="nav-btn" data-view="history">
+              Call History
+            </button>
+            <button class="nav-btn" data-view="billing">
+              Billing &amp; Payment
+            </button>
+            <button class="nav-btn" data-view="appointments">
+              Appointments
+            </button>
+            <button class="nav-btn" data-view="knowledge">
+              Knowledge Base
+            </button>
           </div>
 
           <!-- PINNED SAVE BUTTON -->
@@ -31,30 +55,32 @@
           </div>
         </nav>
 
-
+        <!-- MAIN PANEL -->
         <main class="main-panel">
-          <!-- Agent Settings View -->
+          <!-- ========== AGENT SETTINGS VIEW ========== -->
           <section id="view-agent-settings" class="view active-view">
-            <h2>ElevenLabs Agent Settings</h2>
+            <h2>Agent Settings</h2>
+
+            <!-- AI API -->
             <div class="card">
-              <h3>ElevenLabs API</h3>
+              <h3>AI API</h3>
               <label>
                 API Key
                 <input
                   type="password"
-                  id="eleven-api-key"
-                  placeholder="Enter ElevenLabs API key"
+                  id="xi-api-key"
+                  placeholder="Enter AI API key"
                 />
               </label>
             </div>
 
+            <!-- VOICE & LANGUAGES -->
             <div class="card">
-              <h3>Voice & Language</h3>
+              <h3>Voice &amp; Languages</h3>
               <div class="grid-2">
                 <label>
                   Voice
-                  <select id="eleven-voice">
-                    <!-- You can populate this via API later -->
+                  <select id="xi-voice">
                     <option value="">Select voice</option>
                     <option value="adam">Adam (English)</option>
                     <option value="bella">Bella (English)</option>
@@ -62,25 +88,55 @@
                   </select>
                 </label>
 
-                <label>
-                  Language
-                  <select id="eleven-language">
-                    <option value="">Auto / default</option>
-                    <option value="en">English</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                  </select>
-                </label>
+                <div>
+                  <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">
+                    Supported Languages
+                  </div>
+                  <div class="checkbox-row">
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="en"
+                      />
+                      English (EN)
+                    </label>
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="es"
+                      />
+                      Spanish (ES)
+                    </label>
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="fr"
+                      />
+                      French (FR)
+                    </label>
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="de"
+                      />
+                      German (DE)
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
 
+            <!-- AGENT BEHAVIOR -->
             <div class="card">
               <h3>Agent Behavior</h3>
               <label>
                 System Prompt
                 <textarea
-                  id="eleven-system-prompt"
+                  id="xi-system-prompt"
                   rows="4"
                   placeholder="Describe the agent's personality, role, and behavior..."
                 ></textarea>
@@ -89,43 +145,45 @@
               <label>
                 Greeting (First Message)
                 <textarea
-                  id="eleven-greeting"
+                  id="xi-greeting"
                   rows="2"
                   placeholder="What should the agent say when the call connects?"
                 ></textarea>
               </label>
             </div>
 
+            <!-- VOICE FINE TUNING -->
             <div class="card">
               <h3>Voice Fine-Tuning</h3>
+
               <div class="slider-row">
                 <label>
                   Talking Speed
                   <input
                     type="range"
-                    id="eleven-speed"
+                    id="xi-speed"
                     min="0.6"
                     max="1.4"
                     step="0.05"
                     value="1.0"
                   />
                 </label>
-                <span id="eleven-speed-value">1.0x</span>
+                <span id="xi-speed-value">1.00x</span>
               </div>
 
               <div class="slider-row">
                 <label>
-                  Stability
+                  Latency (Cost vs Speed)
                   <input
                     type="range"
-                    id="eleven-stability"
-                    min="0.0"
-                    max="1.0"
-                    step="0.05"
-                    value="0.5"
+                    id="xi-stability"
+                    min="0"
+                    max="5"
+                    step="1"
+                    value="3"
                   />
                 </label>
-                <span id="eleven-stability-value">0.50</span>
+                <span id="xi-stability-value">3</span>
               </div>
 
               <div class="slider-row">
@@ -133,24 +191,23 @@
                   Similarity Boost
                   <input
                     type="range"
-                    id="eleven-similarity"
+                    id="xi-similarity"
                     min="0.0"
                     max="1.0"
                     step="0.05"
                     value="0.75"
                   />
                 </label>
-                <span id="eleven-similarity-value">0.75</span>
+                <span id="xi-similarity-value">0.75</span>
               </div>
             </div>
-
-            
           </section>
 
-          <!-- Dialer View -->
+          <!-- ========== PHONE SETTINGS VIEW ========== -->
           <section id="view-dialer" class="view">
-            <h2>Dialer (Twilio)</h2>
+            <h2>Phone Settings</h2>
 
+            <!-- TWILIO CREDS -->
             <div class="card">
               <h3>Twilio Credentials</h3>
               <div class="grid-3">
@@ -179,76 +236,81 @@
                   />
                 </label>
               </div>
+              <div id="phone-save-status" class="save-status"></div>
             </div>
 
+            <!-- METRICS INSTEAD OF DIALER -->
             <div class="card">
-              <h3>Place a Call</h3>
-              <div class="grid-2">
-                <label>
-                  To Number
-                  <input
-                    type="text"
-                    id="dialer-to-number"
-                    placeholder="+1XXXXXXXXXX"
-                  />
-                </label>
-                <div class="dialer-controls">
-                  <button id="btn-start-call" class="primary-btn">
-                    Call
-                  </button>
-                  <span id="dialer-status" class="status-text"></span>
+              <h3>Usage Summary</h3>
+              <p class="status-text">
+                Totals based on Ai agent call history .
+              </p>
+              <div class="metric-row">
+                <div class="metric-pill">
+                  <span>Total calls made</span>
+                  <span class="value" id="metric-total-calls">0</span>
+                </div>
+                <div class="metric-pill">
+                  <span>Total minutes handled</span>
+                  <span class="value" id="metric-total-min-saved">0.0</span>
                 </div>
               </div>
             </div>
-
-            <div class="card">
-              <h3>Call Log (Session)</h3>
-              <pre id="dialer-log" class="log-box"></pre>
-            </div>
           </section>
 
-          <!-- Call History View -->
+          <!-- ========== CALL HISTORY VIEW ========== -->
           <section id="view-history" class="view">
             <h2>Call History</h2>
 
-            <div class="card history-header">
-              <button id="btn-refresh-history" class="ghost-btn">
-                Refresh
-              </button>
-              <button id="btn-clear-history" class="danger-btn">
-                Clear History
-              </button>
-              <span id="history-status" class="status-text"></span>
+            <!-- Chart at the top -->
+            <div class="card">
+              <h3>Usage (Calls / Minutes)</h3>
+              <canvas id="calls-chart" height="140"></canvas>
             </div>
 
+            <!-- Table + transcript/analysis -->
             <div class="card">
+              <div class="history-header">
+                <button id="btn-refresh-history" class="ghost-btn">Refresh</button>
+                <span id="history-status" class="status-text"></span>
+              </div>
+
               <table class="history-table">
                 <thead>
                   <tr>
                     <th>Time</th>
-                    <th>To</th>
-                    <th>From</th>
-                    <th>Status</th>
+                    <th>Direction</th>
                     <th>Duration (s)</th>
+                    <th>Cost (USD)</th>
                     <th>Summary</th>
                   </tr>
                 </thead>
                 <tbody id="history-table-body"></tbody>
               </table>
-            </div>
 
-            <div class="card">
-              <h3>Transcript</h3>
-              <div id="history-transcript" class="transcript-box">
-                Select a call to view its transcript.
+              <div class="history-details">
+                <h3>Analysis</h3>
+                <div id="history-analysis" class="analysis-box">
+                  Select a call to view analysis.
+                </div>
+
+                <h3>Conversation Transcript</h3>
+                <div id="history-transcript" class="transcript-box">
+                  Select a call to view transcript.
+                </div>
               </div>
             </div>
           </section>
 
-          <!-- Billing & Payment View -->
+
+          <!-- ========== BILLING VIEW ========== -->
           <section id="view-billing" class="view">
             <h2>Billing &amp; Payment</h2>
 
+            <h3>Usage (Minutes per Day)</h3>
+            <canvas id="billing-chart" height="140"></canvas>
+
+            <!-- CARD INFO -->
             <div class="card">
               <h3>Card Information</h3>
               <div class="grid-2">
@@ -279,8 +341,10 @@
                   />
                 </label>
               </div>
+              <div id="billing-save-status" class="save-status"></div>
             </div>
 
+            <!-- BILLING ADDRESS -->
             <div class="card">
               <h3>Billing Address</h3>
               <label>
@@ -325,12 +389,57 @@
                 encrypted.
               </p>
               <p class="status-text">
-                This card will be charged a single monthly transaction for access to the multiple API's that this AI runs on.
+                This card will be charged a single monthly transaction for
+                access to the multiple APIs that this AI runs on.
               </p>
             </div>
           </section>
 
-          <!-- Knowledge Base View -->
+          <!-- Appointments View -->
+          <section id="view-appointments" class="view">
+            <h2>Appointments</h2>
+
+            <div class="card">
+              <h3>Google Calendar Connection</h3>
+              <div class="grid-2">
+                <label>
+                  Calendar ID
+                  <input
+                    type="text"
+                    id="gcal-id"
+                    placeholder="your_calendar_id@group.calendar.google.com"
+                  />
+                </label>
+                <label>
+                  Service Account Key Path
+                  <input
+                    type="text"
+                    id="gcal-key-path"
+                    placeholder="C:\\path\\to\\service-account.json"
+                  />
+                </label>
+              </div>
+              <p class="status-text">
+                These values are stored locally in the encrypted config and used to read
+                your appointments.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="appointments-header">
+                <h3>Upcoming Appointments</h3>
+                <button id="btn-refresh-appointments" class="ghost-btn">
+                  Refresh
+                </button>
+                <span id="appointments-status" class="status-text"></span>
+              </div>
+              <div id="appointments-calendar" class="calendar-grid"></div>
+            </div>
+          </section>
+
+
+
+          <!-- ========== KNOWLEDGE BASE VIEW ========== -->
           <section id="view-knowledge" class="view">
             <h2>Knowledge Base</h2>
 
@@ -356,17 +465,38 @@
               <div id="kb-list"></div>
 
               <div id="kb-save-status" class="save-status"></div>
-              <div style="margin-top:8px;font-size:11px;color:#9b9bb5;">
-                These URLs will be stored locally and can be used to feed extra
-                context into your ElevenLabs / Twilio agent logic.
+              <div
+                style="margin-top:8px;font-size:11px;color:#9b9bb5;"
+              >
+                These URLs will be stored in your encrypted config and used to
+                feed extra context into your AI agent logic.
               </div>
             </div>
           </section>
-
         </main>
       </div>
     </div>
 
+    
+
+    <!-- SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./renderer.js"></script>
+
+    <!-- Call Details Modal -->
+    <div id="history-modal" class="history-modal hidden">
+      <div class="history-modal-inner">
+        <button id="history-modal-close" class="history-modal-close">×</button>
+
+        <div id="history-modal-analysis" class="history-modal-analysis">
+          (No analysis loaded.)
+        </div>
+
+        <div id="history-modal-transcript" class="history-modal-transcript">
+          Select a call to view transcript.
+        </div>
+      </div>
+    </div>
+
   </body>
 </html>

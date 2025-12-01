@@ -1,4 +1,8 @@
-﻿function logDialer(message) {
+﻿let callsChart = null;
+let billingChart = null;
+
+
+function logDialer(message) {
   const logEl = document.getElementById('dialer-log');
   if (!logEl) return; // safe if call log UI was removed
   const timestamp = new Date().toLocaleTimeString();
@@ -14,6 +18,11 @@ navButtons.forEach((btn) => {
   btn.addEventListener('click', () => {
     const target = btn.getAttribute('data-view');
 
+    if (target === 'appointments') {
+      loadAppointments();
+    }
+
+
     navButtons.forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
 
@@ -24,16 +33,16 @@ navButtons.forEach((btn) => {
 
 // ---- SLIDER LABELS ----
 // Talking speed
-const speedSlider = document.getElementById('eleven-speed');
-const speedValue = document.getElementById('eleven-speed-value');
+const speedSlider = document.getElementById('xi-speed');
+const speedValue = document.getElementById('xi-speed-value');
 
 // Latency (this used to be “stability”; same element id, different meaning)
-const latencySlider = document.getElementById('eleven-stability');
-const latencyValue = document.getElementById('eleven-stability-value');
+const latencySlider = document.getElementById('xi-stability');
+const latencyValue = document.getElementById('xi-stability-value');
 
 // Similarity
-const similaritySlider = document.getElementById('eleven-similarity');
-const similarityValue = document.getElementById('eleven-similarity-value');
+const similaritySlider = document.getElementById('xi-similarity');
+const similarityValue = document.getElementById('xi-similarity-value');
 
 if (speedSlider) {
   speedSlider.addEventListener('input', () => {
@@ -148,30 +157,42 @@ async function loadConfigIntoUI() {
     const config = await window.api.loadConfig();
     const safeConfig = config || {};
 
-    const eleven = safeConfig.elevenLabs || {};
+    const xi = safeConfig.xiLabs || {};
     const twilio = safeConfig.twilio || {};
     const payment = safeConfig.payment || {};
     knowledgeBaseLinks = safeConfig.knowledgeBase || [];
 
-    // ElevenLabs
-    const apiKeyEl = document.getElementById('eleven-api-key');
-    const voiceEl = document.getElementById('eleven-voice');
-    const promptEl = document.getElementById('eleven-system-prompt');
-    const greetingEl = document.getElementById('eleven-greeting');
+    //
+    const apiKeyEl = document.getElementById('xi-api-key');
+    const voiceEl = document.getElementById('xi-voice');
+    const promptEl = document.getElementById('xi-system-prompt');
+    const greetingEl = document.getElementById('xi-greeting');
+    const googleCalendar = safeConfig.googleCalendar || {};
 
-    if (apiKeyEl) apiKeyEl.value = eleven.apiKey || '';
-    if (voiceEl) voiceEl.value = eleven.voiceId || '';
-    if (promptEl) promptEl.value = eleven.systemPrompt || '';
-    if (greetingEl) greetingEl.value = eleven.greeting || '';
+    if (apiKeyEl) apiKeyEl.value = xi.apiKey || '';
+    if (voiceEl) voiceEl.value = xi.voiceId || '';
+    if (promptEl) promptEl.value = xi.systemPrompt || '';
+    if (greetingEl) greetingEl.value = xi.greeting || '';
+      // Google Calendar
+    const gcalIdEl = document.getElementById('gcal-id');
+    const gcalKeyEl = document.getElementById('gcal-key-path');
+
+    if (gcalIdEl) {
+      gcalIdEl.value = googleCalendar.calendarId || '';
+    }
+    if (gcalKeyEl) {
+      gcalKeyEl.value = googleCalendar.serviceAccountKeyPath || '';
+    }
+
 
     // Languages as checkboxes (multiple)
     const languageCheckboxes = document.querySelectorAll(
-      'input[name="eleven-language"]'
+      'input[name="xi-language"]'
     );
     if (languageCheckboxes.length > 0) {
       const selectedLanguages =
-        eleven.languages ||
-        (eleven.language ? [eleven.language] : []); // backwards compatible
+        xi.languages ||
+        (xi.language ? [xi.language] : []); // backwards compatible
 
       languageCheckboxes.forEach((cb) => {
         cb.checked = selectedLanguages.includes(cb.value);
@@ -180,7 +201,7 @@ async function loadConfigIntoUI() {
 
     // Talking speed
     if (speedSlider) {
-      const speedVal = eleven.speed != null ? eleven.speed : 1.0;
+      const speedVal = xi.speed != null ? xi.speed : 1.0;
       speedSlider.value = speedVal;
       speedValue.textContent = `${Number(speedVal).toFixed(2)}x`;
     }
@@ -188,10 +209,10 @@ async function loadConfigIntoUI() {
     // Latency (fallback to old “stability” if present)
     if (latencySlider) {
       const latencyVal =
-        eleven.latency != null
-          ? eleven.latency
-          : eleven.stability != null
-          ? eleven.stability
+        xi.latency != null
+          ? xi.latency
+          : xi.stability != null
+          ? xi.stability
           : 3; // middle by default
       latencySlider.value = latencyVal;
       latencyValue.textContent = Number(latencyVal).toFixed(0);
@@ -200,7 +221,7 @@ async function loadConfigIntoUI() {
     // Similarity
     if (similaritySlider) {
       const simVal =
-        eleven.similarityBoost != null ? eleven.similarityBoost : 0.75;
+        xi.similarityBoost != null ? xi.similarityBoost : 0.75;
       similaritySlider.value = simVal;
       similarityValue.textContent = Number(simVal).toFixed(2);
     }
@@ -245,27 +266,27 @@ async function loadConfigIntoUI() {
 
 // ---- COLLECT CONFIG FROM UI (Agent + Twilio + Billing + KB) ----
 function collectConfigFromUI() {
-  // ElevenLabs: languages via checkboxes
+  // languages via checkboxes
   const languageCheckboxes = document.querySelectorAll(
-    'input[name="eleven-language"]'
+    'input[name="xi-language"]'
   );
   const languages = [];
   languageCheckboxes.forEach((cb) => {
     if (cb.checked) languages.push(cb.value);
   });
 
-  const elevenConfig = {
+  const xiConfig = {
     apiKey:
-      (document.getElementById('eleven-api-key') || {}).value?.trim() || '',
-    voiceId: (document.getElementById('eleven-voice') || {}).value || '',
+      (document.getElementById('xi-api-key') || {}).value?.trim() || '',
+    voiceId: (document.getElementById('xi-voice') || {}).value || '',
     // first language if any, for older fields
     language: languages[0] || '',
     languages,
     systemPrompt:
-      (document.getElementById('eleven-system-prompt') || {}).value?.trim() ||
+      (document.getElementById('xi-system-prompt') || {}).value?.trim() ||
       '',
     greeting:
-      (document.getElementById('eleven-greeting') || {}).value?.trim() || '',
+      (document.getElementById('xi-greeting') || {}).value?.trim() || '',
     speed: speedSlider ? Number(speedSlider.value) : 1.0,
     // new latency field; this used to be “stability”
     latency: latencySlider ? Number(latencySlider.value) : 3,
@@ -307,12 +328,20 @@ function collectConfigFromUI() {
     country:
       (document.getElementById('billing-country') || {}).value?.trim() || ''
   };
+  // Google Calendar
+  const googleCalendarConfig = {
+    calendarId:
+      (document.getElementById('gcal-id') || {}).value?.trim() || '',
+    serviceAccountKeyPath:
+      (document.getElementById('gcal-key-path') || {}).value?.trim() || ''
+  };
 
   return {
-    elevenLabs: elevenConfig,
+    xiLabs: xiConfig,
     twilio: twilioConfig,
     payment: paymentConfig,
-    knowledgeBase: knowledgeBaseLinks || []
+    knowledgeBase: knowledgeBaseLinks || [],
+    googleCalendar: googleCalendarConfig
   };
 }
 
@@ -391,7 +420,7 @@ const btnTestVoice = document.getElementById('btn-test-voice');
 if (btnTestVoice) {
   btnTestVoice.addEventListener('click', () => {
     alert(
-      'Test Voice is a placeholder.\nWire this to ElevenLabs TTS using your API key to play a sample.'
+      'Test Voice is a placeholder.\nWire this to TTS using your API key to play a sample.'
     );
   });
 }
@@ -453,97 +482,453 @@ if (btnStartCall) {
 }
 
 // ---- HISTORY ----
+// ---- HISTORY ----
 const historyTableBody = document.getElementById('history-table-body');
 const historyTranscriptEl = document.getElementById('history-transcript');
+const historyAnalysisEl = document.getElementById('history-analysis');
+
+// Modal elements for glassy popup
+const historyModal = document.getElementById('history-modal');
+const historyModalClose = document.getElementById('history-modal-close');
+const historyModalAnalysis = document.getElementById('history-modal-analysis');
+const historyStatusEl = document.getElementById('history-status');
+const historyModalTranscript = document.getElementById('history-modal-transcript');
+
 let currentHistory = [];
 let selectedHistoryId = null;
 
+// Close modal
+if (historyModal && historyModalClose) {
+  historyModalClose.addEventListener('click', () => {
+    historyModal.classList.add('hidden');
+    if (historyModalTranscript) historyModalTranscript.innerHTML = '';
+    if (historyModalAnalysis) historyModalAnalysis.innerHTML = '';
+  });
+}
+
+
 async function loadHistoryIntoUI() {
   const historyStatus = document.getElementById('history-status');
-  if (historyStatus) historyStatus.textContent = 'Loading...';
+  historyStatus.textContent = 'Loading call history...';
 
   try {
-    const history = await window.api.getHistory();
-    currentHistory = history || [];
+    const res = await window.api.fetchConversations();
 
-    if (historyTableBody) historyTableBody.innerHTML = '';
+    if (!res.ok) {
+      historyStatus.textContent = `Error: ${res.error}`;
+      return;
+    }
 
-    if (Array.isArray(currentHistory) && historyTableBody) {
-      currentHistory.forEach((entry) => {
-        const tr = document.createElement('tr');
-        tr.dataset.id = entry.id;
+    const { conversations, metrics } = res;
+    currentHistory = conversations || [];
 
-        const timeTd = document.createElement('td');
-        const date = new Date(entry.timestamp);
+    historyTableBody.innerHTML = '';
+
+    conversations.forEach((entry) => {
+      const tr = document.createElement('tr');
+      tr.dataset.id = entry.conversationId;
+
+      const timeTd = document.createElement('td');
+      if (entry.startedAtUnix) {
+        const date = new Date(entry.startedAtUnix * 1000);
         timeTd.textContent = date.toLocaleString();
+      } else {
+        timeTd.textContent = '-';
+      }
 
-        const toTd = document.createElement('td');
-        toTd.textContent = entry.to || '';
+      const dirTd = document.createElement('td');
+      dirTd.textContent = entry.direction || '';
 
-        const fromTd = document.createElement('td');
-        fromTd.textContent = entry.from || '';
+      const idTd = document.createElement('td');
+      idTd.textContent = entry.conversationId;
 
-        const statusTd = document.createElement('td');
-        statusTd.textContent = entry.status || '';
+      const durTd = document.createElement('td');
+      durTd.textContent =
+        entry.durationSeconds != null ? entry.durationSeconds : '';
 
-        const durTd = document.createElement('td');
-        durTd.textContent =
-          entry.durationSeconds != null ? entry.durationSeconds : '';
+      const costTd = document.createElement('td');
+      costTd.textContent =
+        entry.costMarkupUsd != null
+          ? `$${entry.costMarkupUsd.toFixed(2)}`
+          : '';
 
-        const summaryTd = document.createElement('td');
-        summaryTd.textContent = entry.summary || '';
+      const summaryTd = document.createElement('td');
+      summaryTd.textContent = entry.summary || '';
 
-        tr.appendChild(timeTd);
-        tr.appendChild(toTd);
-        tr.appendChild(fromTd);
-        tr.appendChild(statusTd);
-        tr.appendChild(durTd);
-        tr.appendChild(summaryTd);
+      tr.appendChild(timeTd);
+      tr.appendChild(dirTd);
+      tr.appendChild(durTd);
+      tr.appendChild(costTd);
+      tr.appendChild(summaryTd);
 
-        tr.addEventListener('click', () => {
-          selectHistoryRow(entry.id);
-        });
-
-        historyTableBody.appendChild(tr);
+      tr.addEventListener('click', () => {
+        selectHistoryRow(entry.conversationId);
       });
-    }
 
-    if (historyStatus) {
-      historyStatus.textContent = `Loaded ${currentHistory.length} entr${
-        currentHistory.length === 1 ? 'y' : 'ies'
-      }.`;
-    }
+      historyTableBody.appendChild(tr);
+    });
 
-    // Update phone metrics from history
-    updatePhoneMetrics(currentHistory);
+    historyStatus.textContent = `Loaded ${conversations.length} conversation${
+      conversations.length === 1 ? '' : 's'
+    }.`;
+
+    // Update metrics + charts
+    updateUsageMetrics(metrics);
+    renderUsageCharts(metrics);
   } catch (err) {
     console.error('Failed to load history', err);
-    if (historyStatus) historyStatus.textContent = 'Failed to load history.';
+    const historyStatus = document.getElementById('history-status');
+    historyStatus.textContent = 'Failed to load history.';
   }
 }
 
-function selectHistoryRow(id) {
-  selectedHistoryId = id;
+// Render transcript as chat-style bubbles
+function buildChatTranscript(transcriptText, container) {
+  if (!container) return;
 
-  if (historyTableBody) {
-    Array.from(historyTableBody.children).forEach((row) => {
-      row.classList.toggle('selected', row.dataset.id === id);
-    });
-  }
+  container.innerHTML = '';
 
-  const entry = currentHistory.find((e) => e.id === id);
-  if (!historyTranscriptEl) return;
+  // Normalize to string in case transcriptText is an object/array
+  const text =
+    transcriptText == null
+      ? ''
+      : typeof transcriptText === 'string'
+      ? transcriptText
+      : JSON.stringify(transcriptText, null, 2);
 
-  if (!entry) {
-    historyTranscriptEl.textContent = 'No transcript found for this call.';
+  if (!text.trim()) {
+    container.textContent = 'No transcript available for this call.';
     return;
   }
 
-  if (entry.transcript) {
-    historyTranscriptEl.textContent = entry.transcript;
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  lines.forEach((line) => {
+    // Skip header lines like "Conversation Transcript" or "Analysis"
+    if (/^conversation transcript/i.test(line)) return;
+    if (/^analysis\b/i.test(line)) return;
+
+    // Default values
+    let role = 'user';
+    let time = '';
+    let messageText = line;
+
+    // Match: [agent @ 0s] Hello there
+    const m = line.match(/^\[(agent|user)[^\]]*@\s*([0-9]+s?)\]\s*(.*)$/i);
+    if (m) {
+      role = m[1].toLowerCase();
+      time = m[2];
+      messageText = m[3];
+    }
+
+    if (!messageText) return;
+
+    const lineEl = document.createElement('div');
+    lineEl.classList.add('chat-line', role === 'agent' ? 'agent' : 'user');
+
+    const bubble = document.createElement('div');
+    bubble.classList.add('chat-bubble', role === 'agent' ? 'agent' : 'user');
+    bubble.textContent = messageText;
+
+    if (time) {
+      const ts = document.createElement('div');
+      ts.classList.add('chat-timestamp');
+      ts.textContent = time;
+      bubble.appendChild(ts);
+    }
+
+    lineEl.appendChild(bubble);
+    container.appendChild(lineEl);
+  });
+}
+
+
+// Render analysis panel (tries JSON first, then falls back to raw text)
+function renderAnalysis(entry, container) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  let analysisObj = entry && entry.analysis ? entry.analysis : null;
+  let rawAnalysisText = '';
+
+  // If no separate analysis field, try to parse it out of the transcript block
+  if (!analysisObj && typeof entry.transcript === 'string') {
+    const idx = entry.transcript.indexOf('\nAnalysis');
+    if (idx !== -1) {
+      const analysisBlock = entry.transcript.slice(idx);
+      rawAnalysisText = analysisBlock.replace(/^Analysis\s*/i, '').trim();
+
+      const firstBrace = analysisBlock.indexOf('{');
+      if (firstBrace !== -1) {
+        const jsonCandidate = analysisBlock.slice(firstBrace).trim();
+        try {
+          analysisObj = JSON.parse(jsonCandidate);
+        } catch (e) {
+          // ignore JSON parse failure; we'll use raw text
+        }
+      }
+    }
+  }
+
+  // If we have a JSON object, show key info
+  if (analysisObj) {
+    const title = document.createElement('h4');
+    title.textContent =
+      analysisObj.call_summary_title || 'Call Summary';
+    container.appendChild(title);
+
+    if (analysisObj.transcript_summary) {
+      const summaryP = document.createElement('p');
+      summaryP.textContent = analysisObj.transcript_summary;
+      container.appendChild(summaryP);
+    }
+
+    if (analysisObj.call_successful) {
+      const outcomeP = document.createElement('p');
+      outcomeP.textContent = `Outcome: ${analysisObj.call_successful}`;
+      container.appendChild(outcomeP);
+    }
+  } else if (rawAnalysisText) {
+    // Fallback: raw text under "Analysis"
+    const p = document.createElement('p');
+    p.textContent = rawAnalysisText;
+    container.appendChild(p);
   } else {
-    historyTranscriptEl.textContent =
-      'No transcript stored yet.\n\nOnce you wire Twilio or ElevenLabs transcription, populate the transcript field in history entries.';
+    container.textContent = '(No analysis available for this call.)';
+  }
+}
+
+// ---- TRANSCRIPT RENDERING (CHAT STYLE, SAFE NORMALIZATION) ----
+function renderTranscriptHtml(transcriptText) {
+  // Normalize transcript into an array of { role, text } messages
+  let messages = [];
+
+  if (Array.isArray(transcriptText)) {
+    // ElevenLabs-style: [{ role, time_in_call_secs, message }, ...]
+    messages = transcriptText
+      .filter((m) => m && (m.message || m.text))
+      .map((m) => {
+        const role = (m.role || 'user').toLowerCase();
+        const t =
+          m.time_in_call_secs != null
+            ? `${m.time_in_call_secs}s`
+            : '';
+        const body = m.message || m.text || '';
+
+        let label = body;
+        if (t) {
+          label = `[${role} @ ${t}] ${body}`;
+        } else {
+          label = `[${role}] ${body}`;
+        }
+
+        return { role, text: label };
+      });
+  } else if (typeof transcriptText === 'string') {
+    // Preformatted big string → split into lines
+    const lines = transcriptText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    messages = lines.map((line) => {
+      const lower = line.toLowerCase();
+      let role = 'user';
+      if (lower.startsWith('[agent')) role = 'agent';
+      else if (lower.startsWith('[user')) role = 'user';
+      return { role, text: line };
+    });
+  } else if (transcriptText && typeof transcriptText === 'object') {
+    // Some object shape → try .text, else JSON
+    const raw =
+      typeof transcriptText.text === 'string'
+        ? transcriptText.text
+        : JSON.stringify(transcriptText, null, 2);
+
+    const lines = raw
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    messages = lines.map((line) => ({
+      role: 'user',
+      text: line
+    }));
+  } else {
+    // Nothing usable
+    return '<div class="transcript-empty">No transcript available.</div>';
+  }
+
+  if (!messages.length) {
+    return '<div class="transcript-empty">No transcript available.</div>';
+  }
+
+  // Build bubbles
+  return messages
+    .map((msg) => {
+      const safe = escapeHtml(msg.text || '');
+      const role = msg.role === 'agent' ? 'agent' : 'user';
+
+      // agent → right in blue, user → left in purple
+      const isAgent = role === 'agent';
+
+      const rowClass = isAgent
+        ? 'chat-row align-right'
+        : 'chat-row align-left';
+
+      const bubbleClass = isAgent
+        ? 'chat-bubble bubble-agent'
+        : 'chat-bubble bubble-user';
+
+      return `
+        <div class="${rowClass}">
+          <div class="${bubbleClass}">
+            ${safe}
+          </div>
+        </div>
+      `
+       
+    })
+    .join('');
+}
+
+
+
+async function selectHistoryRow(conversationId) {
+  if (!conversationId || !window.api || !window.api.fetchConversationDetail) {
+    return;
+  }
+
+  if (historyTranscriptEl) {
+    historyTranscriptEl.innerHTML = '<div class="transcript-empty">Loading transcript…</div>';
+  }
+  if (historyAnalysisEl) {
+    historyAnalysisEl.textContent = 'Loading analysis…';
+  }
+
+  try {
+    const result = await window.api.fetchConversationDetail(conversationId);
+    if (!result || !result.ok) {
+      const msg = result && result.error ? result.error : 'Unable to load conversation.';
+      if (historyTranscriptEl) historyTranscriptEl.textContent = msg;
+      if (historyAnalysisEl) historyAnalysisEl.textContent = '';
+      return;
+    }
+
+    const { transcript, analysis } = result.conversation;
+
+    // Analysis
+    if (historyAnalysisEl) {
+      if (analysis && analysis.transcript_summary) {
+        historyAnalysisEl.textContent = analysis.transcript_summary;
+      } else if (analysis) {
+        historyAnalysisEl.textContent = JSON.stringify(analysis, null, 2);
+      } else {
+        historyAnalysisEl.textContent = 'No analysis available.';
+      }
+    }
+
+    // Transcript as chat bubbles
+    if (historyTranscriptEl) {
+      historyTranscriptEl.innerHTML = renderTranscriptHtml(transcript || []);
+    }
+  } catch (err) {
+    console.error('selectHistoryRow error', err);
+    if (historyTranscriptEl) {
+      historyTranscriptEl.textContent = 'Error loading transcript.';
+    }
+    if (historyAnalysisEl) {
+      historyAnalysisEl.textContent = '';
+    }
+  }
+}
+
+
+
+function updateUsageMetrics(metrics) {
+  if (!metrics) return;
+  const totalCallsEl = document.getElementById('metric-total-calls');
+  const totalMinSavedEl = document.getElementById('metric-total-min-saved');
+
+  if (totalCallsEl) {
+    totalCallsEl.textContent = metrics.totalCalls.toString();
+  }
+
+  if (totalMinSavedEl) {
+    // You mentioned adding 25¢ per minute markup; "minutes saved"
+    // can just be totalMinutes for now or your own heuristic.
+    totalMinSavedEl.textContent = metrics.totalMinutes.toFixed(1);
+  }
+}
+
+function renderUsageCharts(metrics) {
+  if (!metrics || !metrics.byDay) return;
+
+  const labels = metrics.byDay.map((d) => d.date);
+  const callCounts = metrics.byDay.map((d) => d.callCount);
+  const minutes = metrics.byDay.map((d) => +d.minutes.toFixed(2));
+
+  // Calls chart in Calls section
+  const callsCanvas = document.getElementById('calls-chart');
+  if (callsCanvas) {
+    const ctx = callsCanvas.getContext('2d');
+    if (callsChart) callsChart.destroy();
+
+    callsChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Calls',
+            data: callCounts,
+            tension: 0.3
+          },
+          {
+            label: 'Minutes',
+            data: minutes,
+            tension: 0.3
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Date' } },
+          y: { beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  // Minutes chart in Billing section
+  const billingCanvas = document.getElementById('billing-chart');
+  if (billingCanvas) {
+    const ctx2 = billingCanvas.getContext('2d');
+    if (billingChart) billingChart.destroy();
+
+    billingChart = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Minutes per day',
+            data: minutes
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: 'Date' } },
+          y: { beginAtZero: true }
+        }
+      }
+    });
   }
 }
 
@@ -552,25 +937,7 @@ if (btnRefreshHistory) {
   btnRefreshHistory.addEventListener('click', loadHistoryIntoUI);
 }
 
-const btnClearHistory = document.getElementById('btn-clear-history');
-if (btnClearHistory) {
-  btnClearHistory.addEventListener('click', async () => {
-    if (!confirm('Are you sure you want to clear all call history?')) return;
-    const res = await window.api.clearHistory();
-    const historyStatus = document.getElementById('history-status');
-    if (res.ok) {
-      if (historyStatus) historyStatus.textContent = 'History cleared.';
-      await loadHistoryIntoUI();
-      if (historyTranscriptEl) {
-        historyTranscriptEl.textContent =
-          'Select a call to view its transcript.';
-      }
-    } else {
-      if (historyStatus)
-        historyStatus.textContent = `Failed to clear: ${res.error}`;
-    }
-  });
-}
+
 
 function markSectionDirty(section) {
   let elId = null;
@@ -590,6 +957,46 @@ function markSectionDirty(section) {
   }
 }
 
+const kbUrlInput = document.getElementById('kb-url-input');
+const kbNameInput = document.getElementById('kb-name-input');
+const kbAddBtn = document.getElementById('kb-add-btn');
+const kbListEl = document.getElementById('kb-list');
+const kbStatusEl = document.getElementById('kb-status');
+
+if (kbAddBtn) {
+  kbAddBtn.addEventListener('click', async () => {
+    const url = kbUrlInput.value.trim();
+    const name = kbNameInput.value.trim();
+
+    if (!url) {
+      kbStatusEl.textContent = 'Please enter a URL.';
+      return;
+    }
+
+    kbStatusEl.textContent = 'Adding link to knowledge base...';
+
+    const res = await window.api.addKnowledgeUrl({ url, name });
+    if (!res.ok) {
+      kbStatusEl.textContent = `Error: ${res.error}`;
+      return;
+    }
+
+    kbStatusEl.textContent = 'Added to knowledge base.';
+
+    const li = document.createElement('li');
+    li.textContent = `${res.document.name} (${url})`;
+    kbListEl.appendChild(li);
+
+    kbUrlInput.value = '';
+    kbNameInput.value = '';
+
+    setTimeout(() => {
+      kbStatusEl.textContent = '';
+    }, 2500);
+  });
+}
+
+
 // Example: mark agent section dirty on any input/textarea/select change
 document.addEventListener("input", (e) => {
   const target = e.target;
@@ -606,8 +1013,147 @@ document.addEventListener("input", (e) => {
   }
 });
 
+async function checkForUpdatesOnStartup() {
+  const overlay = document.getElementById('update-overlay');
+  const overlayText = document.getElementById('update-overlay-text');
 
-// Initial load
-loadConfigIntoUI().then(() => {
-  loadHistoryIntoUI();
-});
+  if (!overlay || !window.api || !window.api.checkForUpdates) {
+    // No overlay or no API – just bail and hide if present
+    if (overlay) overlay.classList.add('hidden');
+    return;
+  }
+
+  try {
+    const res = await window.api.checkForUpdates();
+
+    if (!res.ok && overlayText) {
+      overlayText.textContent =
+        'Update check failed. Using local files…';
+      // give user a second to read, then fade out
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+      }, 1500);
+    } else {
+      // success: fade out immediately
+      overlay.classList.add('hidden');
+    }
+  } catch (err) {
+    console.error('Update check error:', err);
+    overlay.classList.add('hidden');
+  }
+}
+
+// ---- APPOINTMENTS / GOOGLE CALENDAR ----
+const appointmentsCalendarEl = document.getElementById('appointments-calendar');
+const appointmentsStatusEl = document.getElementById('appointments-status'); // optional if you add one
+
+async function loadAppointments() {
+  if (!appointmentsCalendarEl || !window.api || !window.api.listAppointments) {
+    return;
+  }
+
+  appointmentsCalendarEl.innerHTML = '<div class="calendar-loading">Loading appointments…</div>';
+
+  try {
+    const result = await window.api.listAppointments();
+    if (!result || !result.ok) {
+      appointmentsCalendarEl.innerHTML = `<div class="calendar-error">${
+        result?.error || 'Failed to load appointments.'
+      }</div>`;
+      return;
+    }
+
+    renderAppointments(result.events || []);
+  } catch (err) {
+    console.error('loadAppointments error', err);
+    appointmentsCalendarEl.innerHTML =
+      '<div class="calendar-error">Error loading appointments.</div>';
+  }
+}
+
+// Simple HTML escape helper for calendar fields
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
+function renderAppointments(events) {
+  appointmentsCalendarEl.innerHTML = '';
+
+  if (!events.length) {
+    appointmentsCalendarEl.innerHTML =
+      '<div class="calendar-empty">No upcoming appointments.</div>';
+    return;
+  }
+
+  events.forEach((evt) => {
+    const card = document.createElement('div');
+    card.className = 'calendar-event';
+
+    const start = evt.start ? new Date(evt.start) : null;
+    const end = evt.end ? new Date(evt.end) : null;
+
+    const dateStr = start
+      ? start.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric'
+        })
+      : '';
+
+    const timeStr = start
+      ? start.toLocaleTimeString(undefined, {
+          hour: 'numeric',
+          minute: '2-digit'
+        })
+      : '';
+
+    card.innerHTML = `
+      <div class="calendar-event-date">
+        <div class="calendar-event-day">${dateStr}</div>
+        <div class="calendar-event-time">${timeStr}</div>
+      </div>
+      <div class="calendar-event-main">
+        <div class="calendar-event-title">${escapeHtml(evt.summary || '(no title)')}</div>
+        ${
+          evt.location
+            ? `<div class="calendar-event-location">${escapeHtml(evt.location)}</div>`
+            : ''
+        }
+        ${
+          evt.description
+            ? `<div class="calendar-event-description">${escapeHtml(
+                evt.description
+              )}</div>`
+            : ''
+        }
+      </div>
+    `;
+
+    appointmentsCalendarEl.appendChild(card);
+  });
+}
+
+
+
+// Initial load: check updates, then load config + history
+(async () => {
+    const refreshAppointmentsBtn = document.getElementById(
+    'btn-refresh-appointments'
+  );
+  if (refreshAppointmentsBtn) {
+    refreshAppointmentsBtn.addEventListener('click', loadAppointments);
+  }
+
+  // Optionally preload on startup
+  loadAppointments();
+
+  await checkForUpdatesOnStartup();
+  await loadConfigIntoUI();
+  await loadHistoryIntoUI();
+})();
