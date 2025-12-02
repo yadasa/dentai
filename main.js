@@ -25,12 +25,6 @@ if (!gotTheLock) {
   });
 }
 
-// Configure autoUpdater
-autoUpdater.logger = console;
-autoUpdater.autoDownload = false;         // we'll call downloadUpdate() ourselves
-autoUpdater.autoInstallOnAppQuit = false; // we control quit/install manually
-
-
 // Log version on startup:
 console.log('[SmartVoiceX] app version:', app.getVersion());
 
@@ -41,8 +35,8 @@ ipcMain.handle('get-version', () => app.getVersion());
 // Use console for logging
 autoUpdater.logger = console;
 
-// We control install manually after download
-autoUpdater.autoDownload = true;
+// We will manually call downloadUpdate() from our check-updates IPC handler
+autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 
 // Basic diagnostics
@@ -69,12 +63,8 @@ autoUpdater.on('download-progress', (p) => {
   );
 });
 
-// 👇 KEY: when the update is fully downloaded, close app, run installer, relaunch
-autoUpdater.on('update-downloaded', (info) => {
-  console.log('[AutoUpdater] update downloaded:', info.version);
-  // quitAndInstall(isSilent, isForceRunAfter)
-  autoUpdater.quitAndInstall(false, true);
-});
+// ⛔️ DO NOT keep an update-downloaded handler here.
+// The update-downloaded logic lives in ipcMain.handle('check-updates').
 
 // 🔐 Google Drive constants (no UI / not in .env)
 const GOOGLE_DRIVE_FOLDER_ID = '1foIeWLJKiuhwXwcIxLcOxNssdv6UPMJr';
