@@ -12,6 +12,46 @@ console.log('[SmartVoiceX] app version:', app.getVersion());
 
 ipcMain.handle('get-version', () => app.getVersion());
 
+// ========= AUTO-UPDATER GLOBAL CONFIG =========
+
+// Use console for logging
+autoUpdater.logger = console;
+
+// We control install manually after download
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = false;
+
+// Basic diagnostics
+autoUpdater.on('error', (err) => {
+  console.error('[AutoUpdater] error:', err);
+});
+
+autoUpdater.on('checking-for-update', () => {
+  console.log('[AutoUpdater] checking for update...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  console.log('[AutoUpdater] update available:', info.version);
+});
+
+autoUpdater.on('update-not-available', () => {
+  console.log('[AutoUpdater] no update available');
+});
+
+autoUpdater.on('download-progress', (p) => {
+  console.log(
+    '[AutoUpdater] download progress:',
+    `${p.percent.toFixed(1)}%`
+  );
+});
+
+// 👇 KEY: when the update is fully downloaded, close app, run installer, relaunch
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('[AutoUpdater] update downloaded:', info.version);
+  // quitAndInstall(isSilent, isForceRunAfter)
+  autoUpdater.quitAndInstall(false, true);
+});
+
 // 🔐 Google Drive constants (no UI / not in .env)
 const GOOGLE_DRIVE_FOLDER_ID = '1foIeWLJKiuhwXwcIxLcOxNssdv6UPMJr';
 
@@ -43,7 +83,6 @@ function getXiApiKey() {
   }
   return apiKey;
 }
-
 
 function getxiConfig() {
   const cfg = loadConfigFromEnv();
@@ -586,55 +625,45 @@ ipcMain.handle('load-config-from-file', async () => {
   }
 });
 
-
+/**
+ * Check for updates from renderer.
+ * - In dev: returns { ok: true, dev: true }
+ * - In prod: triggers checkForUpdates, which:
+ *   - returns "none" if no newer version
+ *   - returns "downloading" if an update is available (autoDownload is true)
+ *
+ * The actual install happens in the global `update-downloaded` listener
+ * via `autoUpdater.quitAndInstall(true, true)`.
+ */
 ipcMain.handle('check-updates', async () => {
   if (!app.isPackaged) {
-    // In dev, just pretend it's fine
-    return { ok: true, dev: true, message: 'Dev mode – no auto-updates.' };
+    console.log('[AutoUpdater] dev mode – skipping real update check');
+    return {
+      ok: true,
+      dev: true,
+      status: 'none',
+      message: 'Dev mode – no auto-updates.'
+    };
   }
 
-  return new Promise((resolve) => {
-    let resolved = false;
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    const info = result && result.updateInfo;
 
-    function safeResolve(payload) {
-      if (!resolved) {
-        resolved = true;
-        resolve(payload);
-      }
+    // If no update or same version, tell renderer "none"
+    if (!info || !info.version || info.version === app.getVersion()) {
+      console.log('[AutoUpdater] up to date:', app.getVersion());
+      return { ok: true, status: 'none' };
     }
 
-    autoUpdater.once('error', (err) => {
-      console.error('[AutoUpdater] error', err);
-      safeResolve({ ok: false, error: err.message || String(err) });
-    });
-
-    autoUpdater.once('update-not-available', () => {
-      console.log('[AutoUpdater] no update');
-      safeResolve({ ok: true, status: 'none' });
-    });
-
-    autoUpdater.once('update-available', (info) => {
-      console.log('[AutoUpdater] update available:', info.version);
-      // auto download
-      autoUpdater.downloadUpdate();
-      safeResolve({ ok: true, status: 'downloading', info });
-    });
-
-    autoUpdater.once('update-downloaded', (info) => {
-      console.log('[AutoUpdater] update downloaded', info.version);
-      // optional: you could send an IPC event here to say "Ready to install"
-      // autoUpdater.quitAndInstall();
-    });
-
-    // 👇 Catch the promise so Node doesn't emit UnhandledPromiseRejectionWarning
-    autoUpdater.checkForUpdates().catch((err) => {
-      console.error('[AutoUpdater] checkForUpdates() rejected', err);
-      safeResolve({ ok: false, error: err.message || String(err) });
-    });
-  });
+    // autoDownload = true means download starts automatically.
+    console.log('[AutoUpdater] update check result, downloading:', info.version);
+    return { ok: true, status: 'downloading', info };
+  } catch (err) {
+    console.error('[AutoUpdater] checkForUpdates() failed', err);
+    return { ok: false, error: err.message || String(err) };
+  }
 });
-
-
 
 
 // Get call history
