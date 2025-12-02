@@ -693,13 +693,11 @@ ipcMain.handle('check-updates', async () => {
     autoUpdater.once('update-available', (info) => {
       console.log('[AutoUpdater] update available:', info.version);
 
-      // Immediately tell the renderer we’re downloading
-      safeResolve({ ok: true, status: 'downloading', info });
-
-      // Now actually download and then run the installer
+      // Download the installer, wait until it's fully on disk
       (async () => {
         try {
           const downloadResult = await autoUpdater.downloadUpdate();
+
           const installerPath = Array.isArray(downloadResult)
             ? downloadResult[0]
             : downloadResult;
@@ -708,49 +706,40 @@ ipcMain.handle('check-updates', async () => {
 
           if (!installerPath) {
             console.error('[AutoUpdater] downloadUpdate returned empty path');
+            safeResolve({
+              ok: false,
+              status: 'error',
+              error: 'downloadUpdate returned empty path'
+            });
             return;
           }
 
-          const exeName = path.basename(process.execPath);
-          console.log('[AutoUpdater] exeName to kill (from helper):', exeName);
+          // Remember this path so another IPC can run it
+          lastInstallerPath = installerPath;
 
-          isQuittingForUpdate = true;
-
-          // Build a small cmd script that:
-          //  1) waits a moment
-          //  2) kills SmartVoiceX Beta.exe
-          //  3) starts the NSIS installer
-          const escapedInstaller = installerPath.replace(/"/g, '""');
-          const escapedExe = exeName.replace(/"/g, '""');
-
-          const cmdScript =
-            `timeout /t 2 /nobreak >nul & ` +
-            `taskkill /IM "${escapedExe}" /F & ` +
-            `start "" "${escapedInstaller}" --updated`;
-
-          console.log('[AutoUpdater] helper cmd script:', cmdScript);
-
-          // Run the helper completely detached from this Electron process
-          spawn('cmd.exe', ['/c', cmdScript], {
-            detached: true,
-            stdio: 'ignore'
-          }).unref();
-
-          // Now exit THIS app; helper will do the kill + install
-          setTimeout(() => {
-            app.quit();
-            setTimeout(() => process.exit(0), 2000);
-          }, 200);
+          // Tell renderer “download finished, ready to install”
+          safeResolve({
+            ok: true,
+            status: 'downloaded',
+            info,
+            installerPath // optional; you don’t have to use this in renderer
+          });
         } catch (err) {
           console.error('[AutoUpdater] downloadUpdate failed', err);
+          safeResolve({
+            ok: false,
+            status: 'error',
+            error: err.message || String(err)
+          });
         }
       })();
-
     });
 
+    // Start the check
     autoUpdater.checkForUpdates();
   });
 });
+
 
 
 
@@ -958,6 +947,41 @@ ipcMain.handle('start-call', async (_event, payload) => {
     return { ok: false, error: err.message };
   }
 });
+
+ipcMain.handle('install-downloaded-update', async () => {
+  try {
+    if (!app.isPackaged) {
+      return { ok: false, error: 'Dev mode – no installer run.' };
+    }
+
+    if (!lastInstallerPath) {
+      return { ok: false, error: 'No downloaded installer available.' };
+    }
+
+    console.log('[AutoUpdater] launching installer at:', lastInstallerPath);
+
+    // Open the NSIS installer normally (UI will show)
+    const result = await shell.openPath(lastInstallerPath);
+    if (result) {
+      // shell.openPath returns a non-empty string if there was an error
+      console.error('[AutoUpdater] shell.openPath error:', result);
+      return { ok: false, error: result };
+    }
+
+    // Give the installer a moment to start, then exit this app
+    setTimeout(() => {
+      isQuittingForUpdate = true;
+      app.quit();
+      setTimeout(() => process.exit(0), 2000);
+    }, 500);
+
+    return { ok: true };
+  } catch (err) {
+    console.error('[AutoUpdater] install-downloaded-update failed', err);
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
 
 ipcMain.handle('gcal-list-appointments', async () => {
   try {
