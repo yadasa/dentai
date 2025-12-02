@@ -7,6 +7,30 @@ const { exec } = require('child_process'); // 👈 NEW
 const { google } = require('googleapis');
 const { autoUpdater } = require('electron-updater');
 
+// --- Update / single-instance flags ---
+let isQuittingForUpdate = false;
+
+// Make sure only one instance of SmartVoiceX is running
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+  process.exit(0);
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
+// Configure autoUpdater
+autoUpdater.logger = console;
+autoUpdater.autoDownload = false;         // we'll call downloadUpdate() ourselves
+autoUpdater.autoInstallOnAppQuit = false; // we control quit/install manually
+
+
 // Log version on startup:
 console.log('[SmartVoiceX] app version:', app.getVersion());
 
@@ -515,12 +539,24 @@ app.whenReady().then(() => {
 
   createWindow();
 
-  // No direct autoUpdater.checkForUpdatesAndNotify() here;
-  // updates are driven via ipcMain "check-updates" + renderer overlay.
+  // We let the renderer trigger updates via window.api.checkUpdates()
+  // so no autoUpdater.checkForUpdatesAndNotify() here.
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('before-quit', (event) => {
+  // If we're quitting because of an update, do NOT block the quit
+  if (isQuittingForUpdate) {
+    return;
+  }
+
+  // If you ever add any custom cleanup on normal quit,
+  // you can handle it here (but don't event.preventDefault() for updates).
+});
+
 
 
 app.on('window-all-closed', () => {
@@ -637,33 +673,62 @@ ipcMain.handle('load-config-from-file', async () => {
  */
 ipcMain.handle('check-updates', async () => {
   if (!app.isPackaged) {
-    console.log('[AutoUpdater] dev mode – skipping real update check');
-    return {
-      ok: true,
-      dev: true,
-      status: 'none',
-      message: 'Dev mode – no auto-updates.'
-    };
+    // In dev, just pretend it's fine
+    return { ok: true, dev: true, status: 'none', message: 'Dev mode – no auto-updates.' };
   }
 
-  try {
-    const result = await autoUpdater.checkForUpdates();
-    const info = result && result.updateInfo;
+  return new Promise((resolve) => {
+    let resolved = false;
 
-    // If no update or same version, tell renderer "none"
-    if (!info || !info.version || info.version === app.getVersion()) {
-      console.log('[AutoUpdater] up to date:', app.getVersion());
-      return { ok: true, status: 'none' };
+    function safeResolve(payload) {
+      if (!resolved) {
+        resolved = true;
+        resolve(payload);
+      }
     }
 
-    // autoDownload = true means download starts automatically.
-    console.log('[AutoUpdater] update check result, downloading:', info.version);
-    return { ok: true, status: 'downloading', info };
-  } catch (err) {
-    console.error('[AutoUpdater] checkForUpdates() failed', err);
-    return { ok: false, error: err.message || String(err) };
-  }
+    autoUpdater.once('error', (err) => {
+      console.error('[AutoUpdater] error', err);
+      safeResolve({ ok: false, error: err.message || String(err) });
+    });
+
+    autoUpdater.once('update-not-available', () => {
+      console.log('[AutoUpdater] no update');
+      safeResolve({ ok: true, status: 'none' });
+    });
+
+    autoUpdater.once('update-available', (info) => {
+      console.log('[AutoUpdater] update available:', info.version);
+      // Start downloading right away
+      autoUpdater.downloadUpdate();
+      // Tell renderer we're downloading (your overlay text)
+      safeResolve({ ok: true, status: 'downloading', info });
+    });
+
+    autoUpdater.once('update-downloaded', (info) => {
+      console.log('[AutoUpdater] update downloaded', info && info.version);
+
+      // Now we are quitting specifically for an update.
+      isQuittingForUpdate = true;
+
+      // Give logs/UI a moment, then quit and install.
+      setTimeout(() => {
+        try {
+          // Silent install; app will be relaunched by NSIS
+          autoUpdater.quitAndInstall(true, true);
+        } catch (e) {
+          console.error('quitAndInstall threw', e);
+          // As a last-resort safety, force exit so the installer
+          // never sees the app still running.
+          setTimeout(() => process.exit(0), 1000);
+        }
+      }, 500);
+    });
+
+    autoUpdater.checkForUpdates();
+  });
 });
+
 
 
 // Get call history
