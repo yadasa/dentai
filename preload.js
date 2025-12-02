@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('api', {
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   checkForUpdates: () => ipcRenderer.invoke('check-updates'),
 
+  getVersion: () => ipcRenderer.invoke('get-version'),
+
     // NEW: load config from a .env file
   loadConfigFromFile: () => ipcRenderer.invoke('load-config-from-file'),
 

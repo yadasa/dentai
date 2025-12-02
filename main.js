@@ -7,6 +7,10 @@ const { exec } = require('child_process'); // 👈 NEW
 const { google } = require('googleapis');
 const { autoUpdater } = require('electron-updater');
 
+// Log version on startup:
+console.log('[SmartVoiceX] app version:', app.getVersion());
+
+ipcMain.handle('get-version', () => app.getVersion());
 
 // 🔐 Google Drive constants (no UI / not in .env)
 const GOOGLE_DRIVE_FOLDER_ID = '1foIeWLJKiuhwXwcIxLcOxNssdv6UPMJr';

@@ -1198,6 +1198,14 @@ function renderAppointments(events) {
     refreshAppointmentsBtn.addEventListener('click', loadAppointments);
   }
 
+  // Show version in UI / console
+  if (window.api && window.api.getVersion) {
+    const v = await window.api.getVersion();
+    console.log('[SmartVoiceX] renderer version:', v);
+    const badge = document.getElementById('app-version');
+    if (badge) badge.textContent = v;
+  }
+
   // Optionally preload on startup
   loadAppointments();
 
