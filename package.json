@@ -1,6 +1,6 @@
 {
   "name": "voice-agent-desktop",
-  "version": "0.4.41",
+  "version": "0.4.43",
   "description": "AI Agent Control Panel",
   "main": "main.js",
   "scripts": {

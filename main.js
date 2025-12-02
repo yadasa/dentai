@@ -699,7 +699,12 @@ ipcMain.handle('check-updates', async () => {
       // Now actually download and then run the installer
       (async () => {
         try {
-          const installerPath = await autoUpdater.downloadUpdate();
+          const downloadResult = await autoUpdater.downloadUpdate();
+          // NSIS returns an array of paths; others may return a single string
+          const installerPath = Array.isArray(downloadResult)
+            ? downloadResult[0]
+            : downloadResult;
+
           console.log('[AutoUpdater] installer downloaded at:', installerPath);
 
           if (!installerPath) {
@@ -708,22 +713,41 @@ ipcMain.handle('check-updates', async () => {
           }
 
           const exeName = path.basename(process.execPath);
+          console.log('[AutoUpdater] exeName to kill:', exeName);
+
           isQuittingForUpdate = true;
 
-          // Command: kill all SmartVoiceX Beta.exe processes, then start installer
-          const cmd = `taskkill /IM "${exeName}" /F & start "" "${installerPath}" --updated`;
-          console.log('[AutoUpdater] running installer via cmd:', cmd);
-
-          spawn('cmd.exe', ['/c', cmd], {
+          // 1️⃣ Kill the running app EXE
+          const killer = spawn('taskkill', ['/IM', exeName, '/F'], {
             detached: true,
             stdio: 'ignore'
-          }).unref();
+          });
 
-          // Give helper a moment to start, then exit this process
-          setTimeout(() => {
-            app.quit();
-            setTimeout(() => process.exit(0), 2000);
-          }, 500);
+          killer.on('error', (err) => {
+            console.error('[AutoUpdater] taskkill error:', err);
+          });
+
+          killer.on('exit', (code, signal) => {
+            console.log(
+              `[AutoUpdater] taskkill finished (code=${code}, signal=${signal}), starting installer…`
+            );
+
+            // 2️⃣ Start the NSIS installer
+            try {
+              spawn(installerPath, ['--updated'], {
+                detached: true,
+                stdio: 'ignore'
+              }).unref();
+            } catch (e) {
+              console.error('[AutoUpdater] failed to spawn installer:', e);
+            }
+
+            // 3️⃣ Quit this Electron app so installer can overwrite files
+            setTimeout(() => {
+              app.quit();
+              setTimeout(() => process.exit(0), 2000);
+            }, 500);
+          });
         } catch (err) {
           console.error('[AutoUpdater] downloadUpdate failed', err);
         }
@@ -733,6 +757,7 @@ ipcMain.handle('check-updates', async () => {
     autoUpdater.checkForUpdates();
   });
 });
+
 
 
 
