@@ -693,52 +693,80 @@ ipcMain.handle('check-updates', async () => {
     autoUpdater.once('update-available', (info) => {
       console.log('[AutoUpdater] update available:', info.version);
 
-      // Download the installer, wait until it's fully on disk
+      // Immediately tell the renderer we’re downloading
+      safeResolve({ ok: true, status: 'downloading', info });
+
       (async () => {
         try {
-          const downloadResult = await autoUpdater.downloadUpdate();
-
-          const installerPath = Array.isArray(downloadResult)
-            ? downloadResult[0]
-            : downloadResult;
-
-          console.log('[AutoUpdater] installer downloaded at:', installerPath);
+          // 1) Download the installer
+          const rawPath = await autoUpdater.downloadUpdate();
+          const installerPath = Array.isArray(rawPath) ? rawPath[0] : rawPath;
 
           if (!installerPath) {
             console.error('[AutoUpdater] downloadUpdate returned empty path');
-            safeResolve({
-              ok: false,
-              status: 'error',
-              error: 'downloadUpdate returned empty path'
-            });
             return;
           }
 
-          // Remember this path so another IPC can run it
-          lastInstallerPath = installerPath;
+          console.log('[AutoUpdater] installer downloaded at:', installerPath);
 
-          // Tell renderer “download finished, ready to install”
-          safeResolve({
-            ok: true,
-            status: 'downloaded',
-            info,
-            installerPath // optional; you don’t have to use this in renderer
-          });
+          // 2) Build a helper .bat in %TEMP%
+          const tempScriptPath = path.join(
+            app.getPath('temp'),
+            'svx_update_helper.bat'
+          );
+
+          const exeName = path.basename(process.execPath);
+          const installDir = path.dirname(process.execPath);
+
+          console.log('[AutoUpdater] exeName to kill (from helper):', exeName);
+          console.log('[AutoUpdater] installDir to delete:', installDir);
+
+          const script = [
+            '@echo off',
+            'echo [SVX updater] helper starting...',
+            'REM small delay to let main app exit',
+            'timeout /t 2 /nobreak >nul',
+            '',
+            'echo [SVX updater] killing running app...',
+            `taskkill /IM "${exeName}" /F >nul 2>&1`,
+            '',
+            'echo [SVX updater] removing old install dir...',
+            `rmdir /s /q "${installDir}"`,
+            '',
+            'echo [SVX updater] starting installer...',
+            `start "" "${installerPath}" --updated`,
+            '',
+            'echo [SVX updater] done.',
+            'exit /b 0'
+          ].join('\r\n');
+
+          fs.writeFileSync(tempScriptPath, script, 'utf8');
+
+          console.log('[AutoUpdater] helper cmd script:', tempScriptPath);
+
+          // 3) Spawn the helper and then quit this app
+          isQuittingForUpdate = true;
+
+          spawn('cmd.exe', ['/c', tempScriptPath], {
+            detached: true,
+            stdio: 'ignore'
+          }).unref();
+
+          // Give helper a moment to spin up, then exit
+          setTimeout(() => {
+            app.quit();
+            setTimeout(() => process.exit(0), 2000);
+          }, 500);
         } catch (err) {
-          console.error('[AutoUpdater] downloadUpdate failed', err);
-          safeResolve({
-            ok: false,
-            status: 'error',
-            error: err.message || String(err)
-          });
+          console.error('[AutoUpdater] downloadUpdate/helper failed', err);
         }
       })();
     });
 
-    // Start the check
     autoUpdater.checkForUpdates();
   });
 });
+
 
 
 
