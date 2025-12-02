@@ -846,6 +846,28 @@ async function selectHistoryRow(conversationId) {
   }
 }
 
+const loadConfigBtn = document.getElementById('btn-load-config');
+
+if (loadConfigBtn) {
+  loadConfigBtn.addEventListener('click', async () => {
+    const statusEl = document.getElementById('agent-save-status');
+    statusEl.textContent = 'Loading config from file...';
+
+    const result = await window.api.loadConfigFromFile();
+
+    if (result.ok) {
+      statusEl.textContent = 'Config loaded.';
+      // Refresh the UI with the newly loaded config
+      await loadConfigIntoUI();
+    } else {
+      statusEl.textContent = `Failed to load: ${result.error || 'Unknown error'}`;
+    }
+
+    setTimeout(() => {
+      statusEl.textContent = '';
+    }, 3000);
+  });
+}
 
 
 function updateUsageMetrics(metrics) {
@@ -1013,35 +1035,61 @@ document.addEventListener("input", (e) => {
   }
 });
 
-async function checkForUpdatesOnStartup() {
+// ---- UPDATE CHECK (electron-updater backend) ----
+async function runUpdateCheck() {
   const overlay = document.getElementById('update-overlay');
-  const overlayText = document.getElementById('update-overlay-text');
+  const textEl = document.getElementById('update-overlay-text');
 
-  if (!overlay || !window.api || !window.api.checkForUpdates) {
-    // No overlay or no API – just bail and hide if present
-    if (overlay) overlay.classList.add('hidden');
-    return;
-  }
+  // If UI or API isn't wired, just bail silently
+  if (!overlay || !textEl || !window.api) return;
+
+  const checkUpdatesFn = window.api.checkUpdates || window.api.checkForUpdates;
+  if (!checkUpdatesFn) return;
+
+  const showOverlay = () => {
+    overlay.classList.remove('hidden');
+    overlay.classList.add('visible');
+  };
+
+  const hideOverlay = () => {
+    overlay.classList.remove('visible');
+    overlay.classList.add('hidden');
+  };
+
+  showOverlay();
+  textEl.textContent = 'Checking for updates…';
 
   try {
-    const res = await window.api.checkForUpdates();
+    const res = await checkUpdatesFn();
 
-    if (!res.ok && overlayText) {
-      overlayText.textContent =
-        'Update check failed. Using local files…';
-      // give user a second to read, then fade out
-      setTimeout(() => {
-        overlay.classList.add('hidden');
-      }, 1500);
+    if (!res || !res.ok) {
+      const msg = (res && res.error) || 'Unknown error';
+      textEl.textContent = `Update check failed: ${msg}`;
+      setTimeout(hideOverlay, 2000);
+      return;
+    }
+
+    if (res.status === 'downloading') {
+      textEl.textContent = `Downloading version ${res.info?.version || ''}…`;
+      setTimeout(hideOverlay, 2000);
+    } else if (res.status === 'none') {
+      textEl.textContent = 'You are on the latest version.';
+      setTimeout(hideOverlay, 1500);
+    } else if (res.dev) {
+      textEl.textContent = 'Dev mode – updates disabled.';
+      setTimeout(hideOverlay, 1500);
     } else {
-      // success: fade out immediately
-      overlay.classList.add('hidden');
+      // any other status → just hide
+      hideOverlay();
     }
   } catch (err) {
-    console.error('Update check error:', err);
-    overlay.classList.add('hidden');
+    console.error('Update check error', err);
+    textEl.textContent = `Update check failed: ${err.message || err}`;
+    setTimeout(hideOverlay, 2000);
   }
 }
+
+
 
 // ---- APPOINTMENTS / GOOGLE CALENDAR ----
 const appointmentsCalendarEl = document.getElementById('appointments-calendar');
@@ -1143,7 +1191,7 @@ function renderAppointments(events) {
 
 // Initial load: check updates, then load config + history
 (async () => {
-    const refreshAppointmentsBtn = document.getElementById(
+  const refreshAppointmentsBtn = document.getElementById(
     'btn-refresh-appointments'
   );
   if (refreshAppointmentsBtn) {
@@ -1153,7 +1201,7 @@ function renderAppointments(events) {
   // Optionally preload on startup
   loadAppointments();
 
-  await checkForUpdatesOnStartup();
+  await runUpdateCheck();
   await loadConfigIntoUI();
   await loadHistoryIntoUI();
 })();

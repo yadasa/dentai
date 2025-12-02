@@ -1,12 +1,13 @@
 {
   "name": "voice-agent-desktop",
-  "version": "0.3.5",
+  "version": "0.3.89",
   "description": "AI Agent Control Panel",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "publish": "electron-builder --win --publish always"
   },
   "build": {
     "appId": "com.keithazodeh.smartvoicex",
@@ -14,19 +15,30 @@
     "win": {
       "target": "nsis",
       "icon": "build/logo.ico"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "k",
+        "to": "k"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "yadasa",
+        "repo": "dentai",
+        "private": true
+      }
+    ]
   },
-  "author": "You",
-  "license": "MIT",
   "dependencies": {
     "electron-store": "^8.2.0",
     "googleapis": "^166.0.0",
-    "twilio": "^5.2.0"
+    "twilio": "^5.2.0",
+    "electron-updater": "^6.0.0"
   },
   "devDependencies": {
     "electron": "^30.0.0",
     "electron-builder": "^24.0.0"
   }
 }
-
-

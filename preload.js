@@ -10,11 +10,14 @@ contextBridge.exposeInMainWorld('api', {
   startCall: (payload) => ipcRenderer.invoke('start-call', payload),
   refreshCall: (callSid) => ipcRenderer.invoke('refresh-call', callSid),
 
-  // 👇 NEW: startup update check
+ // 🔄 Update check (both spellings for compatibility)
+  checkUpdates: () => ipcRenderer.invoke('check-updates'),
   checkForUpdates: () => ipcRenderer.invoke('check-updates'),
 
-  listAppointments: () => ipcRenderer.invoke('gcal-list-appointments'),
+    // NEW: load config from a .env file
+  loadConfigFromFile: () => ipcRenderer.invoke('load-config-from-file'),
 
+  listAppointments: () => ipcRenderer.invoke('gcal-list-appointments'),
 
   //
   fetchConversations: () => ipcRenderer.invoke('xi-get-conversations'),

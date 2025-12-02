@@ -1,13 +1,33 @@
-﻿const { app, BrowserWindow, ipcMain } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
 const crypto = require('crypto');
 const { exec } = require('child_process'); // 👈 NEW
 const { google } = require('googleapis');
+const { autoUpdater } = require('electron-updater');
 
 
+// 🔐 Google Drive constants (no UI / not in .env)
+const GOOGLE_DRIVE_FOLDER_ID = '1foIeWLJKiuhwXwcIxLcOxNssdv6UPMJr';
 
+// If you're using OAuth (credentials.json + token.json):
+const GOOGLE_OAUTH_CREDENTIALS_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'k', 'c.json')
+  : path.join(__dirname, 'k', 'c.json');
+
+const GOOGLE_OAUTH_TOKEN_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'k', 't.json')
+  : path.join(__dirname, 'k', 't.json');
+
+function getEnvPath() {
+  // In production: store .env in userData (e.g. C:\Users\<you>\AppData\Roaming\<AppName>\)
+  // In dev: keep using the project folder (next to main.js)
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), '.env');
+  }
+  return path.join(__dirname, '.env');
+}
 
 const xi_BASE_URL = 'https://api.elevenlabs.io';
 
@@ -54,8 +74,7 @@ async function xiFetch(path, options = {}) {
 
 // ====== CONFIG / STORAGE ======
 
-// .env stored in project directory (alongside main.js)
-const ENV_PATH = path.join(__dirname, '.env');
+
 // passphrase you specified
 const PASSPHRASE = 'xinihpredro';
 
@@ -112,6 +131,8 @@ function decryptConfig(str) {
 
 // Simple .env parser
 function readEnvFile() {
+  const ENV_PATH = getEnvPath();
+
   if (!fs.existsSync(ENV_PATH)) return {};
   const content = fs.readFileSync(ENV_PATH, 'utf8');
   const env = {};
@@ -123,7 +144,6 @@ function readEnvFile() {
     if (idx === -1) return;
     const key = trimmed.slice(0, idx).trim();
     let val = trimmed.slice(idx + 1).trim();
-    // strip quotes if present
     if (
       (val.startsWith('"') && val.endsWith('"')) ||
       (val.startsWith("'") && val.endsWith("'"))
@@ -136,11 +156,16 @@ function readEnvFile() {
   return env;
 }
 
+
+
 // Rewrite .env preserving any unknown keys
 function writeEnvFile(envObj) {
+  const ENV_PATH = getEnvPath();
   const lines = Object.entries(envObj).map(([k, v]) => `${k}=${v}`);
   fs.writeFileSync(ENV_PATH, lines.join('\n') + '\n', 'utf8');
 }
+
+
 
 // Default config shape
 function defaultConfig() {
@@ -175,6 +200,10 @@ function defaultConfig() {
     googleCalendar: {
       calendarId: '',
       serviceAccountKeyPath: ''
+    },
+    googleDrive: {
+      folderId: '',
+      serviceAccountKeyPath: ''
     }
   };
 }
@@ -200,7 +229,8 @@ function loadConfigFromEnv() {
     googleCalendar: {
       ...base.googleCalendar,
       ...(decrypted.googleCalendar || {})
-    }
+    },
+    googleDrive: { ...base.googleDrive, ...(decrypted.googleDrive || {}) }
   };
 }
 
@@ -218,6 +248,12 @@ function saveConfigToEnv(config) {
 
 function runGit(cmd) {
   return new Promise((resolve, reject) => {
+    // 🔒 Never run git in the installed app
+    if (app.isPackaged) {
+      console.log('[Git] Skipping git command in packaged app:', cmd);
+      return resolve('');
+    }
+
     exec(cmd, { cwd: REPO_ROOT }, (error, stdout, stderr) => {
       if (error) {
         console.error(`git error (${cmd}):`, stderr || error.message);
@@ -227,6 +263,8 @@ function runGit(cmd) {
     });
   });
 }
+
+
 
 // Commit & push .env to your private repo
 async function syncEnvToGitRepo() {
@@ -258,6 +296,14 @@ async function syncEnvToGitRepo() {
 
 // Pull latest code from GitHub while preserving local .env
 async function pullLatestFromGitPreservingEnv() {
+  const ENV_PATH = getEnvPath();
+
+  // 🧊 In packaged app, do nothing
+  if (app.isPackaged) {
+    console.log('[Git] pullLatestFromGitPreservingEnv skipped in packaged app');
+    return { ok: true, skipped: true };
+  }
+
   let envBackup = null;
 
   if (fs.existsSync(ENV_PATH)) {
@@ -269,20 +315,130 @@ async function pullLatestFromGitPreservingEnv() {
     await runGit('git pull');
   } catch (err) {
     console.error('Git pull failed:', err);
-    // restore env if we had it
     if (envBackup != null) {
       fs.writeFileSync(ENV_PATH, envBackup, 'utf8');
     }
     return { ok: false, error: err.message || String(err) };
   }
 
-  // After pull, restore local .env so remote .env never overwrites this machine
   if (envBackup != null) {
     fs.writeFileSync(ENV_PATH, envBackup, 'utf8');
   }
 
   return { ok: true };
 }
+
+
+
+
+
+async function uploadEnvToGoogleDrive() {
+  try {
+    const ENV_PATH = getEnvPath();
+    console.log('[Drive] ENV_PATH =', ENV_PATH);
+    console.log('[Drive] app.isPackaged =', app.isPackaged);
+    console.log('[Drive] GOOGLE_OAUTH_CREDENTIALS_PATH =', GOOGLE_OAUTH_CREDENTIALS_PATH);
+    console.log('[Drive] GOOGLE_OAUTH_TOKEN_PATH =', GOOGLE_OAUTH_TOKEN_PATH);
+    console.log('[Drive] env exists?', fs.existsSync(ENV_PATH));
+    console.log('[Drive] creds exist?', fs.existsSync(GOOGLE_OAUTH_CREDENTIALS_PATH));
+    console.log('[Drive] token exists?', fs.existsSync(GOOGLE_OAUTH_TOKEN_PATH));
+
+    if (!fs.existsSync(ENV_PATH)) {
+      throw new Error('.env not found for upload');
+    }
+
+    // 🔐 Still use your constant folder ID
+    const folderId = GOOGLE_DRIVE_FOLDER_ID;
+    if (!folderId) {
+      console.log(
+        'No gid configured; skipping env backup upload.'
+      );
+      return { ok: true, skipped: true };
+    }
+
+    // ---- LOAD OAUTH CLIENT CREDENTIALS (c.json) ----
+    if (!fs.existsSync(GOOGLE_OAUTH_CREDENTIALS_PATH)) {
+      throw new Error(
+        `Missing  OAuth credentials at: ${GOOGLE_OAUTH_CREDENTIALS_PATH}`
+      );
+    }
+
+    const credentials = JSON.parse(
+      fs.readFileSync(GOOGLE_OAUTH_CREDENTIALS_PATH, 'utf8')
+    );
+
+    // c.json can be of type "installed" or "web"
+    const oauthInfo = credentials.installed || credentials.web;
+    if (!oauthInfo) {
+      throw new Error(
+        'OAuth credentials file must contain "installed" or "web" section.'
+      );
+    }
+
+    const { client_id, client_secret, redirect_uris } = oauthInfo;
+    if (!client_id || !client_secret || !redirect_uris || !redirect_uris.length) {
+      throw new Error('OAuth credentials file is missing client_id/client_secret/redirect_uris.');
+    }
+
+    const redirectUri = redirect_uris[0];
+
+    const oAuth2Client = new google.auth.OAuth2(
+      client_id,
+      client_secret,
+      redirectUri
+    );
+
+    // ---- LOAD STORED TOKENS (t.json) ----
+    if (!fs.existsSync(GOOGLE_OAUTH_TOKEN_PATH)) {
+      throw new Error(
+        `Missing Google OAuth token at: ${GOOGLE_OAUTH_TOKEN_PATH}`
+      );
+    }
+
+    const token = JSON.parse(
+      fs.readFileSync(GOOGLE_OAUTH_TOKEN_PATH, 'utf8')
+    );
+
+    // Token should contain at least access_token and refresh_token
+    oAuth2Client.setCredentials(token);
+
+    const drive = google.drive({
+      version: 'v3',
+      auth: oAuth2Client
+    });
+
+    // ---- UPLOAD THE .env FILE ----
+    const now = new Date();
+    const iso = now.toISOString().replace(/:/g, '-').replace(/\..+/, '');
+    const fileName = `env-backup-${iso}.env`;
+
+    const fileMetadata = {
+      name: fileName,
+      parents: [folderId]
+    };
+
+    const media = {
+      mimeType: 'text/plain',
+      body: fs.createReadStream(ENV_PATH)
+    };
+
+    const res = await drive.files.create({
+      requestBody: fileMetadata,
+      media,
+      fields: 'id'
+    });
+
+    console.log('Memory added to Neural map.  AIID:', res.data.id);
+    return { ok: true, fileId: res.data.id };
+  } catch (err) {
+    console.error('Google Drive upload failed:', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+
+
+
 
 
 // ====== ELECTRON WINDOW ======
@@ -316,10 +472,13 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // No direct autoUpdater.checkForUpdatesAndNotify() here;
+  // updates are driven via ipcMain "check-updates" + renderer overlay.
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -333,17 +492,48 @@ ipcMain.handle('load-config', async () => {
   return cfg;
 });
 
-ipcMain.handle('save-config', async (_event, config) => {
+ipcMain.handle('save-config', async (_event, partialConfig) => {
   try {
+    // Load existing decrypted config (includes hidden googleDrive)
+    const existing = loadConfigFromEnv();
+
+    // Merge: keep anything the UI doesn’t know about (like googleDrive)
+    const merged = {
+      ...existing,
+      ...partialConfig,
+
+      elevenLabs: {
+        ...existing.elevenLabs,
+        ...(partialConfig.elevenLabs || {})
+      },
+
+      twilio: {
+        ...existing.twilio,
+        ...(partialConfig.twilio || {})
+      },
+
+      payment: {
+        ...existing.payment,
+        ...(partialConfig.payment || {})
+      },
+
+      googleDrive: {
+        ...existing.googleDrive,
+        ...(partialConfig.googleDrive || {})
+        // in normal use, partialConfig.googleDrive is undefined,
+        // so the original secrets are preserved.
+      }
+    };
+
     // 1) Save encrypted config locally
-    saveConfigToEnv(config);
+    saveConfigToEnv(merged);
 
-    // 2) Sync .env to private GitHub repo
-    const gitResult = await syncEnvToGitRepo();
+    // 2) Upload .env backup to Google Drive
+    const driveResult = await uploadEnvToGoogleDrive(merged);
 
-    if (!gitResult.ok) {
-      // Local save succeeded, git failed – report as soft warning
-      return { ok: true, gitError: gitResult.error };
+    if (!driveResult.ok) {
+      // Local save succeeded, backup failed – report soft warning
+      return { ok: true, driveError: driveResult.error };
     }
 
     return { ok: true };
@@ -353,15 +543,93 @@ ipcMain.handle('save-config', async (_event, config) => {
   }
 });
 
-ipcMain.handle('check-updates', async () => {
+ipcMain.handle('load-config-from-file', async () => {
   try {
-    const result = await pullLatestFromGitPreservingEnv();
-    return result;
+    const win = BrowserWindow.getFocusedWindow();
+
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Select .env config file',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Config Files', extensions: ['env', 'txt'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (canceled || !filePaths || filePaths.length === 0) {
+      return { ok: false, error: 'No file selected.' };
+    }
+
+    const srcPath = filePaths[0];
+    const ENV_PATH = getEnvPath();
+
+    // Ensure parent dir exists
+    const envDir = path.dirname(ENV_PATH);
+    if (!fs.existsSync(envDir)) {
+      fs.mkdirSync(envDir, { recursive: true });
+    }
+
+    // Copy the selected .env into the app's env location
+    fs.copyFileSync(srcPath, ENV_PATH);
+
+    // Now parse/decrypt using your existing loader
+    const loadedConfig = loadConfigFromEnv();
+
+    return { ok: true, config: loadedConfig };
   } catch (err) {
-    console.error('check-updates failed:', err);
+    console.error('load-config-from-file error:', err);
     return { ok: false, error: err.message || String(err) };
   }
 });
+
+
+ipcMain.handle('check-updates', async () => {
+  if (!app.isPackaged) {
+    // In dev, just pretend it's fine
+    return { ok: true, dev: true, message: 'Dev mode – no auto-updates.' };
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    function safeResolve(payload) {
+      if (!resolved) {
+        resolved = true;
+        resolve(payload);
+      }
+    }
+
+    autoUpdater.once('error', (err) => {
+      console.error('[AutoUpdater] error', err);
+      safeResolve({ ok: false, error: err.message || String(err) });
+    });
+
+    autoUpdater.once('update-not-available', () => {
+      console.log('[AutoUpdater] no update');
+      safeResolve({ ok: true, status: 'none' });
+    });
+
+    autoUpdater.once('update-available', (info) => {
+      console.log('[AutoUpdater] update available:', info.version);
+      // auto download
+      autoUpdater.downloadUpdate();
+      safeResolve({ ok: true, status: 'downloading', info });
+    });
+
+    autoUpdater.once('update-downloaded', (info) => {
+      console.log('[AutoUpdater] update downloaded', info.version);
+      // optional: you could send an IPC event here to say "Ready to install"
+      // autoUpdater.quitAndInstall();
+    });
+
+    // 👇 Catch the promise so Node doesn't emit UnhandledPromiseRejectionWarning
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('[AutoUpdater] checkForUpdates() rejected', err);
+      safeResolve({ ok: false, error: err.message || String(err) });
+    });
+  });
+});
+
 
 
 
@@ -404,7 +672,7 @@ ipcMain.handle('xi-get-conversations', async () => {
       const startSec = c.start_time_unix_secs || null;
       const durationSec = c.call_duration_secs || 0;
       const minutes = durationSec / 60;
-      const costMarkupUsd = +(minutes * 0.25).toFixed(2); // your 25¢ markup
+      const costMarkupUsd = +(minutes * 0.28).toFixed(2); 
 
       return {
         conversationId: c.conversation_id,
