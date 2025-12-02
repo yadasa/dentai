@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
 const crypto = require('crypto');
-const { exec } = require('child_process'); // 👈 NEW
+const { exec, spawn  } = require('child_process'); // 👈 NEW
 const { google } = require('googleapis');
 const { autoUpdater } = require('electron-updater');
 
@@ -695,25 +695,59 @@ ipcMain.handle('check-updates', async () => {
       safeResolve({ ok: true, status: 'downloading', info });
     });
 
-    autoUpdater.once('update-downloaded', (info) => {
-      console.log('[AutoUpdater] update downloaded', info && info.version);
+        autoUpdater.once('update-downloaded', (info) => {
+          console.log(
+            '[AutoUpdater] update downloaded',
+            info && info.version,
+            info && info.downloadedFile
+          );
 
-      // Now we are quitting specifically for an update.
-      isQuittingForUpdate = true;
+          // electron-updater passes the local path of the downloaded installer
+          const installerPath = info && info.downloadedFile;
+          if (!installerPath) {
+            console.error('[AutoUpdater] update-downloaded missing downloadedFile, falling back to quitAndInstall');
+            isQuittingForUpdate = true;
+            setTimeout(() => {
+              try {
+                autoUpdater.quitAndInstall(true, true);
+              } catch (e) {
+                console.error('quitAndInstall fallback threw', e);
+                setTimeout(() => process.exit(0), 1000);
+              }
+            }, 500);
+            return;
+          }
 
-      // Give logs/UI a moment, then quit and install.
-      setTimeout(() => {
-        try {
-          // Silent install; app will be relaunched by NSIS
-          autoUpdater.quitAndInstall(true, true);
-        } catch (e) {
-          console.error('quitAndInstall threw', e);
-          // As a last-resort safety, force exit so the installer
-          // never sees the app still running.
-          setTimeout(() => process.exit(0), 1000);
-        }
-      }, 500);
-    });
+          // Name of the running EXE, e.g. "SmartVoiceX Beta.exe"
+          const exeName = path.basename(process.execPath);
+
+          // Mark that we're quitting specifically for update
+          isQuittingForUpdate = true;
+
+          try {
+            // Build a cmd script that:
+            //  1) kills all SmartVoiceX Beta.exe processes,
+            //  2) starts the NSIS installer.
+            const cmd = `taskkill /IM "${exeName}" /F & start "" "${installerPath}" --updated`;
+            console.log('[AutoUpdater] running installer via cmd:', cmd);
+
+            // Run it detached so it survives after this process exits
+            spawn('cmd.exe', ['/c', cmd], {
+              detached: true,
+              stdio: 'ignore'
+            }).unref();
+          } catch (e) {
+            console.error('[AutoUpdater] failed to spawn installer helper', e);
+          }
+
+          // Give the helper a moment to start, then exit *this* process.
+          setTimeout(() => {
+            app.quit();
+            // Extra safety in case quit is blocked for some weird reason
+            setTimeout(() => process.exit(0), 2000);
+          }, 500);
+        });
+
 
     autoUpdater.checkForUpdates();
   });
