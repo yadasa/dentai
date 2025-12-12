@@ -10,6 +10,217 @@ function logDialer(message) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+function setMaxIcon(isMaximized) {
+  const icon = document.getElementById('win-max-icon');
+  if (!icon) return;
+  // □ = maximize, ❐ = restore (good enough visually)
+  icon.textContent = isMaximized ? '❐' : '□';
+}
+
+function applyWindowState(state) {
+  const isMax = !!state?.isMaximized;
+  document.body.classList.toggle('is-maximized', isMax);
+  setMaxIcon(isMax);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btnMin = document.getElementById('win-min');
+  const btnMax = document.getElementById('win-max');
+  const btnClose = document.getElementById('win-close');
+  const titlebar = document.getElementById('titlebar');
+  const APPEARANCE_KEY = 'svx.appearanceMode';
+
+  function getAppearanceMode() {
+    return localStorage.getItem(APPEARANCE_KEY) || 'glass';
+  }
+
+  function setAppearanceMode(mode) {
+    const m = (mode === 'solid') ? 'solid' : 'glass';
+    localStorage.setItem(APPEARANCE_KEY, m);
+    applyAppearanceMode(m);
+  }
+
+  function applyAppearanceMode(mode) {
+    const m = (mode === 'solid') ? 'solid' : 'glass';
+    document.body.classList.toggle('mode-glass', m === 'glass');
+    document.body.classList.toggle('mode-solid', m === 'solid');
+
+    // update segmented UI if present
+    const glassBtn = document.getElementById('mode-glass-btn');
+    const solidBtn = document.getElementById('mode-solid-btn');
+    glassBtn?.classList.toggle('active', m === 'glass');
+    solidBtn?.classList.toggle('active', m === 'solid');
+  }
+
+    const modal = document.getElementById('settings-modal');
+    const openBtn = document.getElementById('open-settings-btn');
+    const closeBtn = document.getElementById('close-settings-btn');
+
+    function openSettings() {
+      modal?.classList.remove('hidden');
+    }
+    function closeSettings() {
+      modal?.classList.add('hidden');
+    }
+
+    openBtn?.addEventListener('click', openSettings);
+    closeBtn?.addEventListener('click', closeSettings);
+
+    // click outside shell closes
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) closeSettings();
+    });
+
+    // esc closes
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) closeSettings();
+    });
+
+    // submenu tabs
+    const tabs = Array.from(document.querySelectorAll('.settings-tab'));
+    const panels = Array.from(document.querySelectorAll('.settings-panel'));
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const key = tab.getAttribute('data-settings-tab');
+
+        tabs.forEach(t => t.classList.toggle('active', t === tab));
+        panels.forEach(p => p.classList.toggle('active', p.getAttribute('data-settings-panel') === key));
+      });
+    });
+
+
+
+  btnMin?.addEventListener('click', () => window.api?.winMinimize?.());
+
+  btnMax?.addEventListener('click', async () => {
+    const isMax = await window.api?.winMaxToggle?.();
+    applyWindowState({ isMaximized: isMax });
+  });
+
+  btnClose?.addEventListener('click', () => window.api?.winClose?.());
+
+  // Optional: double-click titlebar to toggle maximize/restore
+  titlebar?.addEventListener('dblclick', async () => {
+    const isMax = await window.api?.winMaxToggle?.();
+    applyWindowState({ isMaximized: isMax });
+  });
+
+  // State events from main
+  window.api?.onWindowState?.(applyWindowState);
+
+  // Initial state
+  window.api?.winIsMaximized?.()
+    .then((isMax) => applyWindowState({ isMaximized: isMax }))
+    .catch(() => {});
+
+  // =========================
+  // Settings Modal + Appearance Mode (local cache)
+  // =========================
+  (() => {
+    const APPEARANCE_KEY = 'svx.appearanceMode';
+
+    function applyAppearanceMode(mode) {
+      const m = (mode === 'solid') ? 'solid' : 'glass';
+
+      document.body.classList.toggle('mode-glass', m === 'glass');
+      document.body.classList.toggle('mode-solid', m === 'solid');
+
+      const glassBtn = document.getElementById('mode-glass-btn');
+      const solidBtn = document.getElementById('mode-solid-btn');
+      const status = document.getElementById('appearance-mode-status');
+
+      // Reuse your existing button styles: primary = active, ghost = inactive
+      if (glassBtn && solidBtn) {
+        if (m === 'glass') {
+          glassBtn.classList.add('primary-btn');
+          glassBtn.classList.remove('ghost-btn');
+
+          solidBtn.classList.add('ghost-btn');
+          solidBtn.classList.remove('primary-btn');
+        } else {
+          solidBtn.classList.add('primary-btn');
+          solidBtn.classList.remove('ghost-btn');
+
+          glassBtn.classList.add('ghost-btn');
+          glassBtn.classList.remove('primary-btn');
+        }
+      }
+
+      if (status) status.textContent = `Current: ${m}`;
+    }
+
+    function getAppearanceMode() {
+      return localStorage.getItem(APPEARANCE_KEY) || 'glass';
+    }
+
+    function setAppearanceMode(mode) {
+      const m = (mode === 'solid') ? 'solid' : 'glass';
+      localStorage.setItem(APPEARANCE_KEY, m);
+      applyAppearanceMode(m);
+    }
+
+    function openSettings() {
+      const modal = document.getElementById('settings-modal');
+      modal?.classList.remove('hidden');
+      modal?.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeSettings() {
+      const modal = document.getElementById('settings-modal');
+      modal?.classList.add('hidden');
+      modal?.setAttribute('aria-hidden', 'true');
+    }
+
+    function switchSettingsTab(key) {
+      const tabs = Array.from(document.querySelectorAll('[data-settings-tab]'));
+      const panels = Array.from(document.querySelectorAll('[data-settings-panel]'));
+
+      tabs.forEach((t) => t.classList.toggle('active', t.getAttribute('data-settings-tab') === key));
+      panels.forEach((p) => {
+        const show = p.getAttribute('data-settings-panel') === key;
+        p.classList.toggle('hidden', !show);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // Apply appearance on startup
+      applyAppearanceMode(getAppearanceMode());
+      switchSettingsTab('appearance');
+
+      // Open/close wiring
+      document.getElementById('btn-open-settings')?.addEventListener('click', openSettings);
+      document.getElementById('settings-modal-close')?.addEventListener('click', closeSettings);
+      document.getElementById('settings-close-btn')?.addEventListener('click', closeSettings);
+
+      const modal = document.getElementById('settings-modal');
+      modal?.addEventListener('click', (e) => {
+        if (e.target === modal) closeSettings();
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          const m = document.getElementById('settings-modal');
+          if (m && !m.classList.contains('hidden')) closeSettings();
+        }
+      });
+
+      // Submenu switching
+      document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-settings-tab');
+          if (key) switchSettingsTab(key);
+        });
+      });
+
+      // Appearance mode buttons
+      document.getElementById('mode-glass-btn')?.addEventListener('click', () => setAppearanceMode('glass'));
+      document.getElementById('mode-solid-btn')?.addEventListener('click', () => setAppearanceMode('solid'));
+    });
+  })();
+
+});
+
 // ---- NAV / VIEW SWITCHING ----
 const navButtons = document.querySelectorAll('.nav-btn');
 const views = document.querySelectorAll('.view');
@@ -155,6 +366,17 @@ function attachKnowledgeBaseHandlers() {
 async function loadConfigIntoUI() {
   try {
     const config = await window.api.loadConfig();
+
+    applyAppearanceMode(getAppearanceModeFromConfig(appConfig));
+
+    // Sync toggle position
+    const glassToggle = document.getElementById('appearance-glass-toggle');
+    if (glassToggle) {
+      glassToggle.checked = (getAppearanceModeFromConfig(appConfig) === 'glass');
+    }
+
+    // f
+    
     const safeConfig = config || {};
 
     const xi = safeConfig.xiLabs || {};
@@ -263,6 +485,36 @@ async function loadConfigIntoUI() {
     console.error('Failed to load config', err);
   }
 }
+
+const glassToggle = document.getElementById('appearance-glass-toggle');
+
+glassToggle?.addEventListener('change', async () => {
+  const mode = glassToggle.checked ? 'glass' : 'solid';
+
+  applyAppearanceMode(mode);
+
+  // Update config + persist
+  appConfig = setAppearanceModeInConfig(appConfig, mode);
+  await window.api.saveConfig(appConfig);
+});
+
+
+function applyAppearanceMode(mode) {
+  const m = (mode === 'solid') ? 'solid' : 'glass'; // default glass
+  document.body.classList.toggle('mode-glass', m === 'glass');
+  document.body.classList.toggle('mode-solid', m === 'solid');
+}
+
+function getAppearanceModeFromConfig(cfg) {
+  return cfg?.appearance?.mode || 'glass';
+}
+
+function setAppearanceModeInConfig(cfg, mode) {
+  cfg.appearance = cfg.appearance || {};
+  cfg.appearance.mode = mode;
+  return cfg;
+}
+
 
 // ---- COLLECT CONFIG FROM UI (Agent + Twilio + Billing + KB) ----
 function collectConfigFromUI() {
@@ -1212,4 +1464,103 @@ function renderAppointments(events) {
   await runUpdateCheck();
   await loadConfigIntoUI();
   await loadHistoryIntoUI();
+  // =========================
+  // Settings Modal + Tabs + Appearance Mode (localStorage)
+  // =========================
+  const settingsModal = document.getElementById('settings-modal');
+  const openSettingsBtn = document.getElementById('btn-open-settings');
+  const closeXBtn = document.getElementById('settings-modal-close');
+  const closeBtn = document.getElementById('settings-close-btn');
+
+  function openSettings() {
+    if (!settingsModal) return;
+    settingsModal.classList.remove('hidden');
+    settingsModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeSettings() {
+    if (!settingsModal) return;
+    settingsModal.classList.add('hidden');
+    settingsModal.setAttribute('aria-hidden', 'true');
+  }
+
+  openSettingsBtn?.addEventListener('click', openSettings);
+  closeXBtn?.addEventListener('click', closeSettings);
+  closeBtn?.addEventListener('click', closeSettings);
+
+  // click outside inner closes
+  settingsModal?.addEventListener('click', (e) => {
+    if (e.target === settingsModal) closeSettings();
+  });
+
+  // ESC closes
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && settingsModal && !settingsModal.classList.contains('hidden')) {
+      closeSettings();
+    }
+  });
+
+  // Tabs (Appearance/Account/Performance)
+  function switchSettingsTab(key) {
+    document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-settings-tab') === key);
+    });
+
+    document.querySelectorAll('.settings-panel').forEach((panel) => {
+      const show = panel.getAttribute('data-settings-panel') === key;
+      panel.classList.toggle('hidden', !show);
+    });
+  }
+
+  document.querySelectorAll('[data-settings-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-settings-tab');
+      if (key) switchSettingsTab(key);
+    });
+  });
+
+  // default panel
+  switchSettingsTab('appearance');
+
+  // Appearance mode (local cache)
+  const APPEARANCE_KEY = 'svx.appearanceMode';
+
+  function applyAppearanceMode(mode) {
+    const m = mode === 'solid' ? 'solid' : 'glass';
+    document.body.classList.toggle('mode-glass', m === 'glass');
+    document.body.classList.toggle('mode-solid', m === 'solid');
+
+    // button visuals (primary=active, ghost=inactive)
+    const glassBtn = document.getElementById('mode-glass-btn');
+    const solidBtn = document.getElementById('mode-solid-btn');
+    const status = document.getElementById('appearance-mode-status');
+
+    if (glassBtn && solidBtn) {
+      if (m === 'glass') {
+        glassBtn.className = 'primary-btn';
+        solidBtn.className = 'ghost-btn';
+      } else {
+        solidBtn.className = 'primary-btn';
+        glassBtn.className = 'ghost-btn';
+      }
+    }
+    if (status) status.textContent = `Current: ${m}`;
+  }
+
+  function getAppearanceMode() {
+    return localStorage.getItem(APPEARANCE_KEY) || 'glass';
+  }
+
+  function setAppearanceMode(mode) {
+    const m = mode === 'solid' ? 'solid' : 'glass';
+    localStorage.setItem(APPEARANCE_KEY, m);
+    applyAppearanceMode(m);
+  }
+
+  document.getElementById('mode-glass-btn')?.addEventListener('click', () => setAppearanceMode('glass'));
+  document.getElementById('mode-solid-btn')?.addEventListener('click', () => setAppearanceMode('solid'));
+
+  // apply on startup
+  applyAppearanceMode(getAppearanceMode());
+
 })();

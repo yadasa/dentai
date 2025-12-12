@@ -1,4 +1,4 @@
-﻿const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, dialog, Menu, globalShortcut  } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const twilio = require('twilio');
@@ -506,9 +506,16 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
-    backgroundColor: '#111111',
+    minWidth: 1000,
+    minHeight: 700,
+
+    frame: false,                 // ✅ remove OS frame
+    transparent: true,            // ✅ allow transparent corners
+    backgroundColor: '#00000000', // ✅ fully transparent window background
+
     title: 'SmartVoiceX Beta',
-    icon: path.join(__dirname, 'build', 'icon.ico'),   // 👈 add this
+    icon: path.join(__dirname, 'build', 'icon.ico'),
+
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -516,8 +523,28 @@ function createWindow() {
     }
   });
 
+  // ✅ Remove default menu bar
+  win.setMenuBarVisibility(false);
+  try { Menu.setApplicationMenu(null); } catch (_) {}
+
+  // ✅ Push window state to renderer (for maximize/restore icon + black bg when maximized)
+  const sendState = () => {
+    win.webContents.send('win:state', {
+      isMaximized: win.isMaximized(),
+      isFullScreen: win.isFullScreen()
+    });
+  };
+
+  win.webContents.on('did-finish-load', sendState);
+
+ 
+
+  win.on('enter-full-screen', sendState);
+  win.on('leave-full-screen', sendState);
+
   win.loadFile('index.html');
 }
+
 
 app.whenReady().then(() => {
   historyPath = path.join(app.getPath('userData'), 'call-history.json');
@@ -528,6 +555,16 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  globalShortcut.register('CommandOrControl+Shift+D', () => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (w) w.webContents.openDevTools({ mode: 'detach' });
+  });
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
+
 
   // We let the renderer trigger updates via window.api.checkUpdates()
   // so no autoUpdater.checkForUpdatesAndNotify() here.
@@ -554,6 +591,40 @@ app.on('window-all-closed', () => {
 });
 
 // ====== IPC HANDLERS ======
+
+// main.js (add near your IPC handlers)
+
+
+
+function getActiveWin() {
+  return BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0] || null;
+}
+
+ipcMain.handle('win:minimize', () => {
+  const win = getActiveWin();
+  win?.minimize();
+});
+
+ipcMain.handle('win:maximizeToggle', () => {
+  const win = getActiveWin();
+  if (!win) return false;
+
+  if (win.isMaximized()) win.unmaximize();
+  else win.maximize();
+
+  return win.isMaximized();
+});
+
+ipcMain.handle('win:isMaximized', () => {
+  const win = getActiveWin();
+  return !!win && win.isMaximized();
+});
+
+ipcMain.handle('win:close', () => {
+  const win = getActiveWin();
+  win?.close();
+});
+
 
 // Load config
 ipcMain.handle('load-config', async () => {

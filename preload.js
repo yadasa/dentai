@@ -21,6 +21,19 @@ contextBridge.exposeInMainWorld('api', {
   // ===== GOOGLE CALENDAR =====
   listAppointments: () => ipcRenderer.invoke('gcal-list-appointments'),
 
+
+
+  // ===== ✅ WINDOW CONTROLS (NEW) =====
+  winMinimize: () => ipcRenderer.invoke('win:minimize'),
+  winMaxToggle: () => ipcRenderer.invoke('win:maximizeToggle'),
+  winIsMaximized: () => ipcRenderer.invoke('win:isMaximized'),
+  winClose: () => ipcRenderer.invoke('win:close'),
+
+  // window state push from main
+  onWindowState: (cb) => {
+    ipcRenderer.on('win:state', (_evt, state) => cb(state));
+  },
+
   // ===== APP / VERSION =====
   getVersion: () => ipcRenderer.invoke('get-version'),
 

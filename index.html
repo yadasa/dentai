@@ -6,6 +6,28 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <!-- CUSTOM TITLEBAR (draggable) -->
+    <div class="titlebar">
+      <div class="titlebar-left">
+        <div class="titlebar-appname">SmartVoiceX</div>
+        <div class="titlebar-sub">Admin Control Panel</div>
+      </div>
+
+      <div class="titlebar-actions">
+        <button class="win-btn win-min" id="win-min" aria-label="Minimize">
+          <span class="win-icon">–</span>
+        </button>
+
+        <button class="win-btn win-max" id="win-max" aria-label="Maximize">
+          <span class="win-icon" id="win-max-icon">□</span>
+        </button>
+
+        <button class="win-btn win-close" id="win-close" aria-label="Close">
+          <span class="win-icon">×</span>
+        </button>
+      </div>
+    </div>
+
     <!-- UPDATE OVERLAY -->
     <div id="update-overlay" class="update-overlay">
       <div class="update-overlay-box">
@@ -21,6 +43,8 @@
         <div class="app-title">SmartVoiceX</div>
         <div class="app-subtitle">Admin Control Panel</div>
       </header>
+
+      
 
       <div class="app-body">
         <!-- SIDEBAR -->
@@ -54,6 +78,10 @@
             <button id="btn-load-config" class="ghost-btn sidebar-load-btn">
               Load Config
             </button>
+            <button id="btn-open-settings" class="ghost-btn sidebar-load-btn" type="button">
+              Settings
+            </button>
+
             <div class="version-badge">
                v<span id="app-version"></span>
             </div>
@@ -69,7 +97,7 @@
             <h2>Agent Settings</h2>
 
             <!-- AI API -->
-            <div class="card">
+            <!--<div class="card">
               <h3>AI API</h3>
               <label>
                 API Key
@@ -79,7 +107,7 @@
                   placeholder="Enter AI API key"
                 />
               </label>
-            </div>
+            </div>-->
 
             <!-- VOICE & LANGUAGES -->
             <div class="card">
@@ -89,15 +117,23 @@
                   Voice
                   <select id="xi-voice">
                     <option value="">Select voice</option>
-                    <option value="adam">Adam (English)</option>
-                    <option value="bella">Bella (English)</option>
-                    <option value="antonio">Antonio (Spanish)</option>
+                    <option value="adam">Alicia </option>
+                    <option value="bella">Bella </option>
+                    <option value="antonio">Eric </option>
+                    
+                    <option value="adam">Gabriella </option>
+                    <option value="bella">Karen </option>
+                    <option value="antonio">Adam </option>
+                    
+                    <option value="adam">Lee </option>
+                    <option value="bella">Kyle </option>
+                    <option value="antonio">Ryan </option>
                   </select>
                 </label>
 
                 <div>
                   <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">
-                    Supported Language(s)
+                    Supported Languages
                   </div>
                   <div class="checkbox-row">
                     <label class="checkbox-chip">
@@ -115,6 +151,30 @@
                         value="es"
                       />
                       Spanish (ES)
+                    </label>
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="zh"
+                      />
+                      Chinese (ZH)
+                    </label>
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="ar"
+                      />
+                      Arabic (AR)
+                    </label>
+                    <label class="checkbox-chip">
+                      <input
+                        type="checkbox"
+                        name="xi-language"
+                        value="vi"
+                      />
+                      Vietnamese (VI)
                     </label>
                     <label class="checkbox-chip">
                       <input
@@ -215,7 +275,7 @@
             <h2>Phone Settings</h2>
 
             <!-- TWILIO CREDS -->
-            <div class="card">
+            <!--<div class="card">
               <h3>Twilio Credentials</h3>
               <div class="grid-3">
                 <label>
@@ -244,7 +304,7 @@
                 </label>
               </div>
               <div id="phone-save-status" class="save-status"></div>
-            </div>
+            </div> -->
 
             
 
@@ -492,6 +552,82 @@
     <!-- SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="./renderer.js"></script>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="history-modal hidden" aria-hidden="true">
+      <div class="history-modal-inner" style="width:min(980px,92vw);max-height:86vh;">
+        <button id="settings-modal-close" class="history-modal-close">×</button>
+
+        <div style="display:flex;gap:14px;min-height:520px;">
+          <!-- left submenu -->
+          <div
+            style="width:220px;display:flex;flex-direction:column;gap:8px;padding-right:10px;border-right:1px solid rgba(130,118,255,0.18);"
+          >
+            <div style="font-size:14px;font-weight:650;color:#e4e4ff;margin:2px 0 6px 2px;">
+              Settings
+            </div>
+
+            <button class="nav-btn active" type="button" data-settings-tab="appearance">
+              Appearance
+            </button>
+            <button class="nav-btn" type="button" data-settings-tab="account">
+              Account
+            </button>
+            <button class="nav-btn" type="button" data-settings-tab="performance">
+              Performance
+            </button>
+
+            <div style="margin-top:auto;"></div>
+
+            <button id="settings-close-btn" class="ghost-btn" type="button">
+              Close
+            </button>
+          </div>
+
+          <!-- right content -->
+          <div style="flex:1;min-width:0;padding-left:6px;">
+            <!-- Appearance -->
+            <div class="settings-panel" data-settings-panel="appearance">
+              <h2 style="margin:0 0 10px 0;">Appearance</h2>
+
+              <div class="card" style="margin-top:10px;">
+                <h3 style="margin-bottom:10px;">Window Style</h3>
+                <p class="status-text" style="margin-top:-6px;">
+                  Glass uses frosted blur. Solid disables blur.
+                </p>
+
+                <div class="action-row">
+                  <button id="mode-glass-btn" class="primary-btn" type="button">
+                    Glass
+                  </button>
+                  <button id="mode-solid-btn" class="ghost-btn" type="button">
+                    Solid
+                  </button>
+                  <span id="appearance-mode-status" class="status-text" style="margin-left:auto;"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Account -->
+            <div class="settings-panel hidden" data-settings-panel="account">
+              <h2 style="margin:0 0 10px 0;">Account</h2>
+              <div class="card">
+                <p class="status-text">Coming soon.</p>
+              </div>
+            </div>
+
+            <!-- Performance -->
+            <div class="settings-panel hidden" data-settings-panel="performance">
+              <h2 style="margin:0 0 10px 0;">Performance</h2>
+              <div class="card">
+                <p class="status-text">Coming soon.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
 
     <!-- Call Details Modal -->
     <div id="history-modal" class="history-modal hidden">
